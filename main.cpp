@@ -18,8 +18,7 @@
 
 using namespace std;
 
-const double N_A = 6.0221412927e23; // Avogadro
-const double k_b = 1.380648813e-23; // Boltzmann
+const double R = 8.3144598e-3; // kJ/(mol*K) gas constant
 
 class Atomtype {
     private:
@@ -62,6 +61,7 @@ double Atomtype::GetC12()
     return this->c12;
 }
 
+// Units end up being kJ/mol if using GROMACS epsilons and sigmas
 double lj(coordinates a, coordinates b, Atomtype at, triclinicbox box, double rcut2);
 
 int main(int argc, char* argv[])
@@ -111,7 +111,7 @@ int main(int argc, char* argv[])
         return -1;
     }
     cout << "T = " << T << endl;
-    const double beta = 1.0/(k_b * T);
+    const double beta = 1.0/(R * T); // kJ/mol
 
     const int atomtypes = strtol(pt.get<std::string>("atomtypes","1").c_str(), &endptr, 10);
     if (*endptr != ' ' && *endptr != 0)
@@ -159,11 +159,13 @@ int main(int argc, char* argv[])
 
     random_device rd;
     mt19937 gen(rd());
-    double exp_pe = 0.0;
+    double V_exp_pe = 0.0;
 
-    #pragma omp parallel for schedule(guided, 15) reduction(exp_pe:+)
+    #pragma omp parallel for schedule(guided, 15) reduction(+:V_exp_pe)
     for (int frame_i = 0; frame_i < frame_n; frame_i++)
     {
+
+        cout << frame_i << endl;
 
         triclinicbox box = trj.GetBox(frame_i);
         double box_x = box.at(X).at(X);
@@ -192,12 +194,19 @@ int main(int argc, char* argv[])
 
             }
 
-            exp_pe += exp(-pe * beta);
+            V_exp_pe += volume(box) * exp(-pe * beta);
 
         }
 
     }
 
+    V_exp_pe /= (frame_n * rand_n);
+
+    double chem_pot = -log(V_exp_pe) / beta;
+    cout << chem_pot << " kJ / mol" << endl;
+
+    // TODO: uncertainty analysis
+    // TODO: tail correction?
 
     return 0;
 
