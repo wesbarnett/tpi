@@ -97,7 +97,7 @@ int main(int argc, char* argv[])
     boost::property_tree::ini_parser::read_ini(argv[1], pt);
     char *endptr;
 
-    const string outfile = pt.get<std::string>("outfile","chempot.dat");
+    const string outfile = pt.get<std::string>("outfile","tpi.dat");
     cout << "outfile = " << outfile << endl;
 
     ofstream ofs(outfile.c_str());
