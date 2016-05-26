@@ -220,7 +220,10 @@ int main(int argc, char* argv[])
     for (int frame_i = 0; frame_i < frame_n; frame_i++)
     {
 
-        cout << frame_i << endl;
+        if (frame_i % 1000 == 0)
+        {
+            cout << frame_i << endl;
+        }
 
         triclinicbox box = trj.GetBox(frame_i);
         double box_x = box.at(X).at(X);
