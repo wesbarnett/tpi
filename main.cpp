@@ -264,7 +264,7 @@ int main(int argc, char* argv[])
 //TODO: divide by volume? Is that correct?
     chem_pot = -log(V_exp_pe_avg/V_avg) / beta;
 
-    cout << chem_pot << " +/- " << sqrt(chem_pot_var) << "kJ / mol" << endl;
+    cout << chem_pot << " +/- " << sqrt(chem_pot_var) << " kJ / mol" << endl;
 
     return 0;
 
