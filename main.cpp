@@ -272,6 +272,7 @@ int main(int argc, char* argv[])
     double V_exp_pe_avg = 0.0;
     double chem_pot_block_avg = 0.0;
 
+    //TODO: bootstrap
     for (int block_i = 0; block_i < block_n; block_i++)
     {
 
@@ -324,10 +325,10 @@ int main(int argc, char* argv[])
     chrono::duration<double> elapsed_seconds = end-start;
     time_t end_time = chrono::system_clock::to_time_t(end);
     ofs << setw(40) << "Finished computation at:" << setw(20) << ctime(&end_time);
-    ofs << setw(40) << "Run time (s):" << setw(20) << elapsed_seconds.count() << endl;
     ofs << "-----------------------------------------------------------------------" << endl;
     ofs << "FINAL RESULT" << endl;
     ofs << "-----------------------------------------------------------------------" << endl;
+    ofs << fixed;
     ofs << chem_pot << " +/- " << sqrt(chem_pot_var) << " kJ / mol" << endl;
     ofs.close();
 
