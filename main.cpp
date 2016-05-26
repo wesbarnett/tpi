@@ -18,6 +18,7 @@
 #include <iostream>
 #include <random>
 
+#include "omp.h"
 #include "gmxcpp/Trajectory.h"
 
 using namespace std;
@@ -84,6 +85,14 @@ int main(int argc, char* argv[])
 
     cout << "Using '" << argv[1] << "' for configuration file..." << endl;
 
+    int nthreads;
+
+    #pragma omp parallel
+    #pragma omp master
+    nthreads = omp_get_num_threads();
+
+    cout << "Using " << nthreads << " OpenMP threads." << endl;
+
     boost::property_tree::ptree pt;
     boost::property_tree::ini_parser::read_ini(argv[1], pt);
     char *endptr;
@@ -99,6 +108,7 @@ int main(int argc, char* argv[])
     ofs << "-----------------------------------------------------------------------" << endl;
     time_t start_time = chrono::system_clock::to_time_t(start);
     ofs << setw(40) << "Started computation at:" << setw(20) << ctime(&start_time);
+    ofs << setw(40) << "Number of OMP threads:" << setw(20) << nthreads << endl;
 
     ofs << setw(40) << "Configuration file:" << setw(20) << argv[1] << endl;
     ofs << setw(40) << "Output file:" << setw(20) << outfile << endl;
@@ -311,7 +321,7 @@ int main(int argc, char* argv[])
     chrono::duration<double> elapsed_seconds = end-start;
     time_t end_time = chrono::system_clock::to_time_t(end);
     ofs << setw(40) << "Finished computation at:" << setw(20) << ctime(&end_time);
-    ofs << setw(40) << "Run time:" << setw(18) << elapsed_seconds.count() << " s" << endl;
+    ofs << setw(40) << "Run time (s):" << setw(20) << elapsed_seconds.count() << endl;
     ofs << "-----------------------------------------------------------------------" << endl;
     ofs << "FINAL RESULT" << endl;
     ofs << "-----------------------------------------------------------------------" << endl;
