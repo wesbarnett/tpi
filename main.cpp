@@ -3,6 +3,9 @@
  * James W. Barnett
  * May 26, 2016
  * 
+ * Limitations:
+ *  - Must use a cubic box (does not have to be equal on all sides)
+ *  - Particle being inserted has no charge, so electrostatics excluded
  */
 
 #include <boost/property_tree/ptree.hpp>
@@ -14,6 +17,49 @@
 #include "gmxcpp/Trajectory.h"
 
 using namespace std;
+
+const double N_A = 6.0221412927e23; // Avogadro
+const double k_B = 1.380648813e-23; // Boltzmann
+
+class Atomtype {
+    private:
+        string name;
+        double sigma;
+        double epsilon;
+    public:
+        Atomtype();
+        Atomtype(string name, double sigma, double epsilon);
+        string GetName();
+        double GetSigma();
+        double GetEpsilon();
+};
+
+Atomtype::Atomtype()
+{
+
+}
+
+Atomtype::Atomtype(string name, double sigma, double epsilon)
+{
+    this->name = name;
+    this->sigma = sigma;
+    this->epsilon = epsilon;
+}
+
+string Atomtype::GetName()
+{
+    return this->name;
+}
+
+double Atomtype::GetSigma()
+{
+    return this->sigma;
+}
+
+double Atomtype::GetEpsilon()
+{
+    return this->epsilon;
+}
 
 int main(int argc, char* argv[])
 {
@@ -35,6 +81,9 @@ int main(int argc, char* argv[])
     const string xtcfile = pt.get<std::string>("xtcfile","prd.xtc");
     cout << "xtcfile = " << xtcfile << endl;
 
+    const string ndxfile = pt.get<std::string>("ndxfile","index.ndx");
+    cout << "ndxfile = " << ndxfile << endl;
+
     const int rand_n = strtol(pt.get<std::string>("rand_n","1000").c_str(), &endptr, 10);
     if (*endptr != ' ' && *endptr != 0)
     {
@@ -43,9 +92,33 @@ int main(int argc, char* argv[])
     }
     cout << "rand_n = " << rand_n << endl;
 
+    const int atomtypes = strtol(pt.get<std::string>("atomtypes","1").c_str(), &endptr, 10);
+    if (*endptr != ' ' && *endptr != 0)
+    {
+        cout << "ERROR: 'atomtypes' must be an integer." << endl;
+        return -1;
+    }
+    cout << "atomtypes = " << atomtypes << endl;
+    vector <Atomtype> at(atomtypes);
+
+    for (int i = 0; i < atomtypes; i++)
+    {
+        string atomtype_str = pt.get<std::string>("atomtype"+to_string(i+1));
+        string atomtype_name;
+        double atomtype_sigma;
+        double atomtype_epsilon;
+        istringstream iss; 
+        iss.str(atomtype_str);
+        iss >> atomtype_name;
+        iss >> atomtype_sigma;
+        iss >> atomtype_epsilon;
+        Atomtype at_tmp(atomtype_name, atomtype_sigma, atomtype_epsilon);
+        at.at(i) = at_tmp;
+    }
+
     /* END CONFIGURATION FILE PARSING */
 
-    Trajectory trj(xtcfile);
+    Trajectory trj(xtcfile, ndxfile);
     const int frame_n = trj.GetNFrames();
 
     random_device rd;
