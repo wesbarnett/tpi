@@ -63,9 +63,12 @@ double Atomtype::GetC12()
 
 // Units end up being kJ/mol if using GROMACS epsilons and sigmas
 double lj(coordinates a, coordinates b, Atomtype at, triclinicbox box, double rcut2);
+double tail(Atomtype at, double rc2, double vol);
 
 int main(int argc, char* argv[])
 {
+
+    const int block_n = 5;
 
     /* BEGIN CONFIGURATION FILE PARSING */
 
@@ -159,9 +162,10 @@ int main(int argc, char* argv[])
 
     random_device rd;
     mt19937 gen(rd());
-    double V_exp_pe = 0.0;
+    vector <double> V_exp_pe(frame_n);
+    vector <double> V(frame_n);
 
-    #pragma omp parallel for schedule(guided, 15) reduction(+:V_exp_pe)
+    #pragma omp parallel for schedule(guided, 15)
     for (int frame_i = 0; frame_i < frame_n; frame_i++)
     {
 
@@ -175,6 +179,9 @@ int main(int argc, char* argv[])
         uniform_real_distribution<double> distrib_x(0.0, box_x);
         uniform_real_distribution<double> distrib_y(0.0, box_y);
         uniform_real_distribution<double> distrib_z(0.0, box_z);
+        double vol = volume(box);
+
+        double V_exp_pe_tmp = 0.0;
 
         for (int rand_i = 0; rand_i < rand_n; rand_i++)
         {
@@ -192,21 +199,72 @@ int main(int argc, char* argv[])
                     pe += lj(rand_xyz, atom_xyz, at.at(atomtype_i), box, rcut2);
                 }
 
+                pe += tail(at.at(atomtype_i), rcut2, (double)atom_n/vol);
+
             }
 
-            V_exp_pe += volume(box) * exp(-pe * beta);
+            V_exp_pe_tmp += vol * exp(-pe * beta);
 
         }
 
+        V_exp_pe.at(frame_i) = V_exp_pe_tmp/(double)rand_n;
+        V.at(frame_i) = vol;
     }
 
-    V_exp_pe /= (frame_n * rand_n);
+    vector <double> chem_pot_block(block_n);
+    double chem_pot = 0.0;
 
-    double chem_pot = -log(V_exp_pe) / beta;
-    cout << chem_pot << " kJ / mol" << endl;
+    double V_avg = 0.0;
+    double V_exp_pe_avg = 0.0;
+    double chem_pot_block_avg = 0.0;
 
-    // TODO: uncertainty analysis
-    // TODO: tail correction?
+    for (int block_i = 0; block_i < block_n; block_i++)
+    {
+
+        int block_end;
+        int block_start = block_i*frame_n/block_n;
+        double V_block = 0.0;
+        double V_exp_pe_block = 0.0;
+
+        if (block_i == block_n-1)
+        {
+            block_end = frame_n;
+        }
+        else
+        {
+            block_end = (block_i+1)*frame_n/block_n;
+        }
+
+        for (int frame_i = block_start; frame_i < block_end; frame_i++)
+        {
+            V_block += V.at(frame_i);
+            V_exp_pe_block += V_exp_pe.at(frame_i);
+            V_avg += V.at(frame_i);
+            V_exp_pe_avg += V_exp_pe.at(frame_i);
+        }
+
+        V_block /= (block_end-block_start);
+        V_exp_pe_block /= (block_end-block_start);
+
+        chem_pot_block.at(block_i) = -log(V_exp_pe_block/V_block) / beta;
+        chem_pot_block_avg += -log(V_exp_pe_block/V_block) / beta;
+
+    }
+    chem_pot_block_avg /= block_n;
+
+    double chem_pot_var = 0.0;
+    for (int block_i = 0; block_i < block_n; block_i++)
+    {
+        chem_pot_var += pow(chem_pot_block_avg - chem_pot_block.at(block_i), 2);
+    }
+    chem_pot_var /= (block_n-1);
+
+    V_avg /= frame_n;
+    V_exp_pe_avg /= frame_n;
+//TODO: divide by volume? Is that correct?
+    chem_pot = -log(V_exp_pe_avg/V_avg) / beta;
+
+    cout << chem_pot << " +/- " << sqrt(chem_pot_var) << "kJ / mol" << endl;
 
     return 0;
 
@@ -223,4 +281,12 @@ double lj(coordinates a, coordinates b, Atomtype at, triclinicbox box, double rc
     }
 
     return 0.0;
+}
+
+double tail(Atomtype at, double rc2, double rho)
+{
+    double ri6 = 1.0/(pow(rc2,3));
+    double ri12 = pow(ri6,2);
+    return (2.0/3.0)*M_PI*rho*((at.GetC12()*ri12)/3.0 - at.GetC6()*ri6);
+
 }
