@@ -7,6 +7,7 @@
  *  - Must use a cubic box (does not have to be equal on all sides)
  *  - Particle being inserted has no charge, so electrostatics excluded
  *  - Every atom type needs to have its own index group!
+ *  - Isothermal-isobaric ensemble
  */
 
 #include <boost/property_tree/ptree.hpp>
@@ -16,9 +17,11 @@
 #include <ctime>
 #include <iomanip>
 #include <iostream>
+#include "omp.h"
+#include <string>
 #include <random>
 
-#include "omp.h"
+#include "Atomtype.h"
 #include "gmxcpp/Trajectory.h"
 
 using namespace std;
@@ -26,47 +29,6 @@ using namespace std;
 const double R = 8.3144598e-3; // kJ/(mol*K) gas constant
 const double oneThird = 1.0/3.0;
 const double twoThirdPi = 2.0*oneThird*M_PI;
-
-class Atomtype {
-    private:
-        string name;
-        // These are from the interactions with the test particle
-        double c6;
-        double c12;
-    public:
-        Atomtype();
-        Atomtype(string name, double c6, double c12);
-        string GetName();
-        double GetC6();
-        double GetC12();
-};
-
-Atomtype::Atomtype()
-{
-
-}
-
-Atomtype::Atomtype(string name, double c6, double c12)
-{
-    this->name = name;
-    this->c6 = c6;
-    this->c12 = c12;
-}
-
-string Atomtype::GetName()
-{
-    return this->name;
-}
-
-double Atomtype::GetC6()
-{
-    return this->c6;
-}
-
-double Atomtype::GetC12()
-{
-    return this->c12;
-}
 
 // Units end up being kJ/mol if using GROMACS epsilons and sigmas
 double lj(coordinates a, coordinates b, Atomtype at, triclinicbox box, double rcut2);

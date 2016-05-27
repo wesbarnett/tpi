@@ -1,2 +1,2 @@
 all:
-	g++ main.cpp -o run -lgmxcpp -fopenmp -Wall
+	g++ main.cpp Atomtype.cpp -o run -I. -lgmxcpp -fopenmp -Wall
