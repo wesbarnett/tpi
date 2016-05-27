@@ -24,6 +24,8 @@
 using namespace std;
 
 const double R = 8.3144598e-3; // kJ/(mol*K) gas constant
+const double oneThird = 1.0/3.0;
+const double twoThirdPi = 2.0*oneThird*M_PI;
 
 class Atomtype {
     private:
@@ -216,8 +218,9 @@ int main(int argc, char* argv[])
 
     Trajectory trj(xtcfile, ndxfile);
     const int frame_n = trj.GetNFrames();
-
     ofs << setw(40) << "Number of frames used:" << setw(20) << frame_n << endl;
+
+    /* BEGIN MAIN ANALYSIS */
 
     random_device rd;
     mt19937 gen(rd());
@@ -228,9 +231,11 @@ int main(int argc, char* argv[])
     for (int frame_i = 0; frame_i < frame_n; frame_i++)
     {
 
+        int thread_id = omp_get_thread_num();
+
         if (frame_i % frame_freq == 0)
         {
-            cout << "Thread: " << omp_get_thread_num() << " Frame: " << frame_i << endl;
+            cout << "Thread: " << thread_id << " Frame: " << frame_i << endl;
         }
 
         triclinicbox box = trj.GetBox(frame_i);
@@ -272,6 +277,10 @@ int main(int argc, char* argv[])
         V_exp_pe.at(frame_i) = V_exp_pe_tmp/(double)rand_n;
         V.at(frame_i) = vol;
     }
+
+    /* END MAIN ANALYSIS */
+
+    /* BEGIN ERROR ANALYSIS */
 
     vector <double> chem_pot_block(block_n);
     double chem_pot = 0.0;
@@ -327,6 +336,8 @@ int main(int argc, char* argv[])
 //TODO: divide by volume? Is that correct?
     chem_pot = -log(V_exp_pe_avg/V_avg) / beta;
 
+    /* END ERROR ANALYSIS */
+
     cout << chem_pot << " +/- " << sqrt(chem_pot_var) << " kJ / mol" << endl;
 
     end = chrono::system_clock::now(); 
@@ -339,7 +350,6 @@ int main(int argc, char* argv[])
     ofs << fixed;
     ofs << chem_pot << " +/- " << sqrt(chem_pot_var) << " kJ / mol" << endl;
     ofs.close();
-
 
     return 0;
 
@@ -364,6 +374,5 @@ double tail(Atomtype at, double rc2, double rho)
 {
     double ri6 = 1.0/(pow(rc2,3));
     double ri12 = pow(ri6,2);
-    return (2.0/3.0)*M_PI*rho*((at.GetC12()*ri12)/3.0 - at.GetC6()*ri6);
-
+    return twoThirdPi * rho * (oneThird*at.GetC12()*ri12 - at.GetC6()*ri6);
 }
