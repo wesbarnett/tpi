@@ -146,17 +146,17 @@ int main(int argc, char* argv[])
     string atomtype_name;
     double atomtype_sigma;
     double atomtype_epsilon;
-    double randtype_sigma;
-    double randtype_epsilon;
+    double testtype_sigma;
+    double testtype_epsilon;
 
-    string randtype_str = pt.get<std::string>("randtype");
+    string testtype_str = pt.get<std::string>("testtype");
     iss.clear();
-    iss.str(randtype_str);
-    iss >> randtype_sigma;
-    iss >> randtype_epsilon;
+    iss.str(testtype_str);
+    iss >> testtype_sigma;
+    iss >> testtype_epsilon;
 
-    ofs << setw(40) << "Test particle sigma (nm):" << setw(20) << randtype_sigma << endl;
-    ofs << setw(40) << "Test particle epsilon (kJ/mol):" << setw(20) << randtype_epsilon << endl;
+    ofs << setw(40) << "Test particle sigma (nm):" << setw(20) << testtype_sigma << endl;
+    ofs << setw(40) << "Test particle epsilon (kJ/mol):" << setw(20) << testtype_epsilon << endl;
     ofs << setw(40) << "Number of atom types:" << setw(20) << atomtypes << endl;
     ofs << setw(20) << "INDEX NAME" << setw(20) << "SIGMA (nm)" << setw(20) << "EPSILON (kJ/mol)" << setw(20) << "C6" << setw(20) << "C12" << endl;
 
@@ -170,8 +170,8 @@ int main(int argc, char* argv[])
         iss >> atomtype_epsilon;
         cout << atomtype_name << " " << atomtype_sigma << " " << atomtype_epsilon << endl;
 
-        double eps = sqrt(randtype_epsilon * atomtype_epsilon);
-        double sig = 0.5 * (randtype_sigma + atomtype_sigma);
+        double eps = sqrt(testtype_epsilon * atomtype_epsilon);
+        double sig = 0.5 * (testtype_sigma + atomtype_sigma);
         double c6 = 4.0 * eps * pow(sig, 6);
         double c12 = 4.0 * eps * pow(sig, 12);
         ofs << setw(20) << atomtype_name << setw(20) << atomtype_sigma << setw(20) << atomtype_epsilon << setw(20) << c6 << setw(20) << c12 << endl;
