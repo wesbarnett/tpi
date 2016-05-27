@@ -121,6 +121,14 @@ int main(int argc, char* argv[])
     cout << "ndxfile = " << ndxfile << endl;
     ofs << setw(40) << "Index file:" << setw(20) << ndxfile << endl;
 
+    const int frame_freq = strtol(pt.get<std::string>("frame_freq","1000").c_str(), &endptr, 10);
+    if (*endptr != ' ' && *endptr != 0)
+    {
+        cout << "ERROR: 'frame_freq' must be an integer." << endl;
+        return -1;
+    }
+    cout << "frame_freq = " << frame_freq << endl;
+
     const int rand_n = strtol(pt.get<std::string>("rand_n","1000").c_str(), &endptr, 10);
     if (*endptr != ' ' && *endptr != 0)
     {
@@ -220,9 +228,9 @@ int main(int argc, char* argv[])
     for (int frame_i = 0; frame_i < frame_n; frame_i++)
     {
 
-        if (frame_i % 1000 == 0)
+        if (frame_i % frame_freq == 0)
         {
-            cout << frame_i << endl;
+            cout << "Thread: " << omp_get_thread_num() << " Frame: " << frame_i << endl;
         }
 
         triclinicbox box = trj.GetBox(frame_i);
@@ -337,6 +345,7 @@ int main(int argc, char* argv[])
 
 }
 
+// Lennard-Jones interaction between two particles
 double lj(coordinates a, coordinates b, Atomtype at, triclinicbox box, double rcut2)
 {
     double r2 = distance2(a, b, box);
@@ -350,6 +359,7 @@ double lj(coordinates a, coordinates b, Atomtype at, triclinicbox box, double rc
     return 0.0;
 }
 
+// LJ tail correction
 double tail(Atomtype at, double rc2, double rho)
 {
     double ri6 = 1.0/(pow(rc2,3));
