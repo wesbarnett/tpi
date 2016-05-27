@@ -10,6 +10,8 @@
  *  - Isothermal-isobaric ensemble
  */
 
+#define BLOCK 15
+
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/ini_parser.hpp>
 
@@ -29,6 +31,7 @@ using namespace std;
 const double R = 8.3144598e-3; // kJ/(mol*K) gas constant
 const double oneThird = 1.0/3.0;
 const double twoThirdPi = 2.0*oneThird*M_PI;
+const double kcal = 4.184; // kJ
 
 // Units end up being kJ/mol if using GROMACS epsilons and sigmas
 double lj(coordinates a, coordinates b, Atomtype at, triclinicbox box, double rcut2);
@@ -189,7 +192,7 @@ int main(int argc, char* argv[])
     vector <double> V_exp_pe(frame_n);
     vector <double> V(frame_n);
 
-    #pragma omp parallel for schedule(guided, 15)
+    #pragma omp parallel for schedule(guided, BLOCK)
     for (int frame_i = 0; frame_i < frame_n; frame_i++)
     {
 
@@ -300,17 +303,21 @@ int main(int argc, char* argv[])
 
     /* END ERROR ANALYSIS */
 
-    cout << chem_pot << " +/- " << sqrt(chem_pot_var) << " kJ / mol" << endl;
+    cout << chem_pot << " ± " << sqrt(chem_pot_var) << " kJ / mol" << endl;
+    cout << chem_pot/kcal << " ± " << sqrt(chem_pot_var)/kcal << " kcal / mol" << endl;
+    cout << chem_pot*beta << " ± " << sqrt(chem_pot_var)*beta << " kT" << endl;
 
     end = chrono::system_clock::now(); 
     chrono::duration<double> elapsed_seconds = end-start;
     time_t end_time = chrono::system_clock::to_time_t(end);
     ofs << setw(40) << "Finished computation at:" << setw(20) << ctime(&end_time);
     ofs << "-----------------------------------------------------------------------" << endl;
-    ofs << "FINAL RESULT" << endl;
+    ofs << "FINAL RESULT - Excess chemical potential of adding test particle" << endl;
     ofs << "-----------------------------------------------------------------------" << endl;
     ofs << fixed;
-    ofs << chem_pot << " +/- " << sqrt(chem_pot_var) << " kJ / mol" << endl;
+    ofs << chem_pot << " ± " << sqrt(chem_pot_var) << " kJ / mol" << endl;
+    ofs << chem_pot/kcal << " ± " << sqrt(chem_pot_var)/kcal << " kcal / mol" << endl;
+    ofs << chem_pot*beta << " ± " << sqrt(chem_pot_var)*beta << " kT" << endl;
     ofs.close();
 
     return 0;
