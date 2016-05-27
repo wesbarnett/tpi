@@ -251,7 +251,7 @@ int main(int argc, char* argv[])
     double V_exp_pe_avg = 0.0;
     double chem_pot_block_avg = 0.0;
 
-    //TODO: bootstrap
+    //TODO: bootstrap?
     for (int block_i = 0; block_i < block_n; block_i++)
     {
 
