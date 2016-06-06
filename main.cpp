@@ -33,10 +33,6 @@ const double oneThird = 1.0/3.0;
 const double twoThirdPi = 2.0*oneThird*M_PI;
 const double kcal = 4.184; // kJ
 
-// Units end up being kJ/mol if using GROMACS epsilons and sigmas
-double lj(coordinates a, coordinates b, Atomtype at, triclinicbox box, double rcut2);
-double tail(Atomtype at, double rc2, double vol);
-
 int main(int argc, char* argv[])
 {
     chrono::time_point<std::chrono::system_clock> start, end;
@@ -175,7 +171,7 @@ int main(int argc, char* argv[])
         double c6 = 4.0 * eps * pow(sig, 6);
         double c12 = 4.0 * eps * pow(sig, 12);
         ofs << setw(20) << atomtype_name << setw(20) << atomtype_sigma << setw(20) << atomtype_epsilon << setw(20) << c6 << setw(20) << c12 << endl;
-        Atomtype at_tmp(atomtype_name, c6, c12);
+        Atomtype at_tmp(atomtype_name, c6, c12, rcut2);
         at.at(i) = at_tmp;
     }
 
@@ -228,10 +224,10 @@ int main(int argc, char* argv[])
                 for (int atom_i = 0; atom_i < atom_n; atom_i++)
                 {
                     coordinates atom_xyz = trj.GetXYZ(frame_i, grp, atom_i);
-                    pe += lj(rand_xyz, atom_xyz, at.at(atomtype_i), box, rcut2);
+                    pe += at.at(atomtype_i).CalcLJ(rand_xyz, atom_xyz, box);
                 }
 
-                pe += tail(at.at(atomtype_i), rcut2, (double)atom_n/vol);
+                pe += at.at(atomtype_i).CalcTail((double)atom_n/vol);
 
             }
 
@@ -321,26 +317,4 @@ int main(int argc, char* argv[])
 
     return 0;
 
-}
-
-// Lennard-Jones interaction between two particles
-double lj(coordinates a, coordinates b, Atomtype at, triclinicbox box, double rcut2)
-{
-    double r2 = distance2(a, b, box);
-    if (r2 < rcut2)
-    {
-        double ri6 = 1.0/(pow(r2,3));
-        double ri12 = pow(ri6,2);
-        return at.GetC12()*ri12 - at.GetC6()*ri6;
-    }
-
-    return 0.0;
-}
-
-// LJ tail correction
-double tail(Atomtype at, double rc2, double rho)
-{
-    double ri6 = 1.0/(pow(rc2,3));
-    double ri12 = pow(ri6,2);
-    return twoThirdPi * rho * (oneThird*at.GetC12()*ri12 - at.GetC6()*ri6);
 }
