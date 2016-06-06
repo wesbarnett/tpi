@@ -6,12 +6,13 @@ Atomtype::Atomtype()
 
 }
 
-Atomtype::Atomtype(string name, double c6, double c12, double rc2)
+Atomtype::Atomtype(Trajectory &trj, string name, double c6, double c12, double rc2)
 {
     this->name = name;
     this->c6 = c6;
     this->c12 = c12;
     this->rcut2 = rc2;
+    this->n = trj.GetNAtoms(this->name);
 
     double ri6 = 1.0/(pow(rc2,3));
     double ri12 = pow(ri6,2);
@@ -19,19 +20,19 @@ Atomtype::Atomtype(string name, double c6, double c12, double rc2)
 
 }
 
-string Atomtype::GetName()
+double Atomtype::CalcPE(int frame_i, Trajectory &trj, coordinates &rand_xyz, triclinicbox &box, double vol)
 {
-    return this->name;
-}
+    double pe = 0.0;
 
-double Atomtype::GetC6()
-{
-    return this->c6;
-}
+    for (int atom_i = 0; atom_i < this->n; atom_i++)
+    {
+        coordinates atom_xyz = trj.GetXYZ(frame_i, this->name, atom_i);
+        pe += CalcLJ(rand_xyz, atom_xyz, box);
+    }
 
-double Atomtype::GetC12()
-{
-    return this->c12;
+    pe += CalcTail((double)this->n/vol);
+
+    return pe;
 }
 
 // Lennard-Jones interaction between an atom of this atomtype and the test particle

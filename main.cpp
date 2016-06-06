@@ -29,8 +29,6 @@
 using namespace std;
 
 const double R = 8.3144598e-3; // kJ/(mol*K) gas constant
-const double oneThird = 1.0/3.0;
-const double twoThirdPi = 2.0*oneThird*M_PI;
 const double kcal = 4.184; // kJ
 
 int main(int argc, char* argv[])
@@ -156,6 +154,8 @@ int main(int argc, char* argv[])
     ofs << setw(40) << "Number of atom types:" << setw(20) << atomtypes << endl;
     ofs << setw(20) << "INDEX NAME" << setw(20) << "SIGMA (nm)" << setw(20) << "EPSILON (kJ/mol)" << setw(20) << "C6" << setw(20) << "C12" << endl;
 
+    Trajectory trj(xtcfile, ndxfile);
+
     for (int i = 0; i < atomtypes; i++)
     {
         string atomtype_str = pt.get<std::string>("atomtype"+to_string(i+1));
@@ -171,13 +171,12 @@ int main(int argc, char* argv[])
         double c6 = 4.0 * eps * pow(sig, 6);
         double c12 = 4.0 * eps * pow(sig, 12);
         ofs << setw(20) << atomtype_name << setw(20) << atomtype_sigma << setw(20) << atomtype_epsilon << setw(20) << c6 << setw(20) << c12 << endl;
-        Atomtype at_tmp(atomtype_name, c6, c12, rcut2);
+        Atomtype at_tmp(trj, atomtype_name, c6, c12, rcut2);
         at.at(i) = at_tmp;
     }
 
     /* END CONFIGURATION FILE PARSING */
 
-    Trajectory trj(xtcfile, ndxfile);
     const int frame_n = trj.GetNFrames();
     ofs << setw(40) << "Number of frames used:" << setw(20) << frame_n << endl;
 
@@ -218,17 +217,7 @@ int main(int argc, char* argv[])
 
             for (int atomtype_i = 0; atomtype_i < atomtypes; atomtype_i++)
             {
-
-                string grp = at.at(atomtype_i).GetName();
-                int atom_n = trj.GetNAtoms(grp);
-                for (int atom_i = 0; atom_i < atom_n; atom_i++)
-                {
-                    coordinates atom_xyz = trj.GetXYZ(frame_i, grp, atom_i);
-                    pe += at.at(atomtype_i).CalcLJ(rand_xyz, atom_xyz, box);
-                }
-
-                pe += at.at(atomtype_i).CalcTail((double)atom_n/vol);
-
+                pe += at.at(atomtype_i).CalcPE(frame_i, trj, rand_xyz, box, vol);
             }
 
             V_exp_pe_tmp += vol * exp(-pe * beta);

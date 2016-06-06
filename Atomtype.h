@@ -2,9 +2,7 @@
 #ifndef ATOMTYPE_H
 #define ATOMTYPE_H
 
-#include "gmxcpp/coordinates.h"
-#include "gmxcpp/triclinicbox.h"
-#include "gmxcpp/Utils.h"
+#include "gmxcpp/Trajectory.h"
 #include <string>
 using namespace std;
 
@@ -16,14 +14,13 @@ class Atomtype {
         double c12;
         double rcut2;
         double tail_factor;
-    public:
-        Atomtype();
-        Atomtype(string name, double c6, double c12, double rcut2);
-        string GetName();
-        double GetC6();
-        double GetC12();
+        int n;
         double CalcLJ(coordinates a, coordinates b, triclinicbox box);
         double CalcTail(double rho);
+    public:
+        Atomtype();
+        Atomtype(Trajectory &trj, string name, double c6, double c12, double rc2);
+        double CalcPE(int frame_i, Trajectory &trj, coordinates &rand_xyz, triclinicbox &box, double vol);
 };
 
 #endif
