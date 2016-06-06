@@ -20,6 +20,7 @@ Atomtype::Atomtype(Trajectory &trj, string name, double c6, double c12, double r
 
 }
 
+// Get the total PE contribution for a test particle for all atom of this atom type
 double Atomtype::CalcPE(int frame_i, Trajectory &trj, coordinates &rand_xyz, triclinicbox &box, double vol)
 {
     double pe = 0.0;
@@ -36,7 +37,7 @@ double Atomtype::CalcPE(int frame_i, Trajectory &trj, coordinates &rand_xyz, tri
 }
 
 // Lennard-Jones interaction between an atom of this atomtype and the test particle
-double Atomtype::CalcLJ(coordinates a, coordinates b, triclinicbox box)
+double Atomtype::CalcLJ(coordinates &a, coordinates &b, triclinicbox &box)
 {
     double r2 = distance2(a, b, box);
     if (r2 < this->rcut2)

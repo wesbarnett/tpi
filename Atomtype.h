@@ -15,7 +15,7 @@ class Atomtype {
         double rcut2;
         double tail_factor;
         int n;
-        double CalcLJ(coordinates a, coordinates b, triclinicbox box);
+        double CalcLJ(coordinates &a, coordinates &b, triclinicbox &box);
         double CalcTail(double rho);
     public:
         Atomtype();
