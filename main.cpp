@@ -298,7 +298,6 @@ int main(int argc, char* argv[])
 
     V_avg /= frame_n;
     V_exp_pe_avg /= frame_n;
-//TODO: divide by volume? Is that correct?
     chem_pot = -log(V_exp_pe_avg/V_avg) / beta;
 
     /* END ERROR ANALYSIS */
