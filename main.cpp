@@ -108,6 +108,15 @@ int main(int argc, char* argv[])
     cout << "block_n = " << block_n << endl;
     ofs << setw(40) << "Blocks used in uncertainty analysis:" << setw(20) << block_n << endl;
 
+    const double epsfact = strtod(pt.get<std::string>("epsfact","1.0").c_str(), &endptr);
+    if (*endptr != ' ' && *endptr != 0)
+    {
+        cout << "ERROR: 'epsfact' must be a double." << endl;
+        return -1;
+    }
+    cout << "epsfact = " << epsfact << endl;
+    ofs << setw(40) << "Well depth factor:" << setw(20) << epsfact << endl;
+
     const double rcut = strtod(pt.get<std::string>("rcut","1.0").c_str(), &endptr);
     if (*endptr != ' ' && *endptr != 0)
     {
@@ -166,7 +175,7 @@ int main(int argc, char* argv[])
         iss >> atomtype_epsilon;
         cout << atomtype_name << " " << atomtype_sigma << " " << atomtype_epsilon << endl;
 
-        double eps = sqrt(testtype_epsilon * atomtype_epsilon);
+        double eps = epsfact * sqrt(testtype_epsilon * atomtype_epsilon);
         double sig = 0.5 * (testtype_sigma + atomtype_sigma);
         double c6 = 4.0 * eps * pow(sig, 6);
         double c12 = 4.0 * eps * pow(sig, 12);
