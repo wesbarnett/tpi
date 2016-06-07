@@ -127,7 +127,7 @@ int main(int argc, char* argv[])
     ofs << setw(40) << "Cutoff distance (nm):" << setw(20) << rcut << endl;
     const double rcut2 = rcut*rcut;
 
-    const double T = strtod(pt.get<std::string>("T","298.15").c_str(), &endptr);
+    const double T = strtod(pt.get<std::string>("T","298.15").c_str(), &endptr); // Kelvin
     if (*endptr != ' ' && *endptr != 0)
     {
         cout << "ERROR: 'T' must be a double." << endl;
