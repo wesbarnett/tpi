@@ -199,15 +199,10 @@ int main(int argc, char* argv[])
         }
 
         triclinicbox box = trj.GetBox(frame_i);
-        double box_x = box.at(X).at(X);
-        double box_y = box.at(Y).at(Y);
-        double box_z = box.at(Z).at(Z);
-
-        uniform_real_distribution<double> distrib_x(0.0, box_x);
-        uniform_real_distribution<double> distrib_y(0.0, box_y);
-        uniform_real_distribution<double> distrib_z(0.0, box_z);
+        uniform_real_distribution<double> distrib_x(0.0, box.at(X).at(X));
+        uniform_real_distribution<double> distrib_y(0.0, box.at(Y).at(Y));
+        uniform_real_distribution<double> distrib_z(0.0, box.at(Z).at(Z));
         double vol = volume(box);
-
         double V_exp_pe_tmp = 0.0;
 
         for (int rand_i = 0; rand_i < rand_n; rand_i++)
