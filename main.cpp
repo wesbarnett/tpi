@@ -257,11 +257,10 @@ int main(int argc, char* argv[])
     /* BEGIN ERROR ANALYSIS */
 
     vector <double> chem_pot_boot(boot_n);
-    double chem_pot = 0.0;
     double chem_pot_boot_avg = 0.0;
 	uniform_int_distribution<int> dist(0,block_n-1);
 
-    #pragma omp parallel
+    #pragma omp parallel for reduction(+:chem_pot_boot_avg)
     for (int boot_i = 0; boot_i < boot_n; boot_i++)
     {
 
@@ -273,7 +272,7 @@ int main(int argc, char* argv[])
 
             int block = dist(gen);
             int block_end;
-            int block_start = block*frame_n/block_n;
+            int block_start = (double)block/block_n * frame_n;
 
             if (block == block_n-1)
             {
@@ -281,7 +280,7 @@ int main(int argc, char* argv[])
             }
             else
             {
-                block_end = (block+1)*frame_n/block_n;
+                block_end = (double)(block+1)/block_n * frame_n;
             }
 
             for (int frame_i = block_start; frame_i < block_end; frame_i++)
@@ -291,8 +290,6 @@ int main(int argc, char* argv[])
             }
 
         }
-        V_boot /= frame_n;
-        V_exp_pe_boot /= frame_n;
 
         chem_pot_boot.at(boot_i) = -log(V_exp_pe_boot/V_boot) / beta;
         chem_pot_boot_avg += chem_pot_boot.at(boot_i);
@@ -310,7 +307,7 @@ int main(int argc, char* argv[])
 
     V_avg /= frame_n;
     V_exp_pe_avg /= frame_n;
-    chem_pot = -log(V_exp_pe_avg/V_avg) / beta;
+    double chem_pot = -log(V_exp_pe_avg/V_avg) / beta;
 
     /* END ERROR ANALYSIS */
 
