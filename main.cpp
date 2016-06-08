@@ -191,8 +191,20 @@ int main(int argc, char* argv[])
 
     /* BEGIN MAIN ANALYSIS */
 
+    // Generate random points once (assumes box does not fluctuate that much)
     random_device rd;
     mt19937 gen(rd());
+    triclinicbox box = trj.GetBox(0);
+    uniform_real_distribution<double> distrib_x(0.0, box.at(X).at(X));
+    uniform_real_distribution<double> distrib_y(0.0, box.at(Y).at(Y));
+    uniform_real_distribution<double> distrib_z(0.0, box.at(Z).at(Z));
+    vector <coordinates> rand_xyz(rand_n);
+    for (int rand_i = 0; rand_i < rand_n; rand_i++)
+    {
+        coordinates rand_xyz_tmp(distrib_x(gen), distrib_y(gen), distrib_z(gen));
+        rand_xyz.at(rand_i) = rand_xyz_tmp;
+    }
+
     vector <double> V_exp_pe(frame_n);
     vector <double> V(frame_n);
 
@@ -208,24 +220,18 @@ int main(int argc, char* argv[])
         }
 
         triclinicbox box = trj.GetBox(frame_i);
-        uniform_real_distribution<double> distrib_x(0.0, box.at(X).at(X));
-        uniform_real_distribution<double> distrib_y(0.0, box.at(Y).at(Y));
-        uniform_real_distribution<double> distrib_z(0.0, box.at(Z).at(Z));
         double vol = volume(box);
         double V_exp_pe_tmp = 0.0;
 
         for (int rand_i = 0; rand_i < rand_n; rand_i++)
         {
-            coordinates rand_xyz(distrib_x(gen), distrib_y(gen), distrib_z(gen));
             double pe = 0.0;
-
             for (int atomtype_i = 0; atomtype_i < atomtypes; atomtype_i++)
             {
-                pe += at.at(atomtype_i).CalcPE(frame_i, trj, rand_xyz, box, vol);
+                pe += at.at(atomtype_i).CalcPE(frame_i, trj, rand_xyz.at(rand_i), box, vol);
             }
 
             V_exp_pe_tmp += vol * exp(-pe * beta);
-
         }
 
         V_exp_pe.at(frame_i) = V_exp_pe_tmp/(double)rand_n;
