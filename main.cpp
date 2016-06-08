@@ -304,9 +304,6 @@ int main(int argc, char* argv[])
         chem_pot_boot_var += pow(chem_pot_boot_avg - chem_pot_boot.at(boot_i), 2);
     }
     chem_pot_boot_var /= (boot_n-1);
-
-    V_avg /= frame_n;
-    V_exp_pe_avg /= frame_n;
     double chem_pot = -log(V_exp_pe_avg/V_avg) / beta;
 
     /* END ERROR ANALYSIS */
