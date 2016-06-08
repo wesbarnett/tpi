@@ -108,6 +108,15 @@ int main(int argc, char* argv[])
     cout << "block_n = " << block_n << endl;
     ofs << setw(40) << "Blocks used in uncertainty analysis:" << setw(20) << block_n << endl;
 
+    const int boot_n = strtol(pt.get<std::string>("boot_n","200").c_str(), &endptr, 10);
+    if (*endptr != ' ' && *endptr != 0)
+    {
+        cout << "ERROR: 'boot_n' must be an integer." << endl;
+        return -1;
+    }
+    cout << "boot_n = " << boot_n << endl;
+    ofs << setw(40) << "Bootstrapped iterations in uncertainty analysis:" << setw(20) << boot_n << endl;
+
     const double epsfact = strtod(pt.get<std::string>("epsfact","1.0").c_str(), &endptr);
     if (*endptr != ' ' && *endptr != 0)
     {
@@ -191,6 +200,9 @@ int main(int argc, char* argv[])
 
     /* BEGIN MAIN ANALYSIS */
 
+    double V_avg = 0.0;
+    double V_exp_pe_avg = 0.0;
+
     // Generate random points once (assumes box does not fluctuate that much)
     random_device rd;
     mt19937 gen(rd());
@@ -236,60 +248,65 @@ int main(int argc, char* argv[])
 
         V_exp_pe.at(frame_i) = V_exp_pe_tmp/(double)rand_n;
         V.at(frame_i) = vol;
+        V_avg += V.at(frame_i);
+        V_exp_pe_avg += V_exp_pe.at(frame_i);
     }
 
     /* END MAIN ANALYSIS */
 
     /* BEGIN ERROR ANALYSIS */
 
-    vector <double> chem_pot_block(block_n);
+    vector <double> chem_pot_boot(boot_n);
     double chem_pot = 0.0;
+    double chem_pot_boot_avg = 0.0;
+	uniform_int_distribution<int> dist(0,block_n-1);
 
-    double V_avg = 0.0;
-    double V_exp_pe_avg = 0.0;
-    double chem_pot_block_avg = 0.0;
-
-    //TODO: bootstrap?
-    for (int block_i = 0; block_i < block_n; block_i++)
+    #pragma omp parallel
+    for (int boot_i = 0; boot_i < boot_n; boot_i++)
     {
 
-        int block_end;
-        int block_start = block_i*frame_n/block_n;
-        double V_block = 0.0;
-        double V_exp_pe_block = 0.0;
+        double V_boot = 0.0;
+        double V_exp_pe_boot = 0.0;
 
-        if (block_i == block_n-1)
+        for (int block_i = 0; block_i < block_n; block_i++)
         {
-            block_end = frame_n;
-        }
-        else
-        {
-            block_end = (block_i+1)*frame_n/block_n;
-        }
 
-        for (int frame_i = block_start; frame_i < block_end; frame_i++)
-        {
-            V_block += V.at(frame_i);
-            V_exp_pe_block += V_exp_pe.at(frame_i);
-            V_avg += V.at(frame_i);
-            V_exp_pe_avg += V_exp_pe.at(frame_i);
+            int block = dist(gen);
+            int block_end;
+            int block_start = block*frame_n/block_n;
+
+            if (block == block_n-1)
+            {
+                block_end = frame_n;
+            }
+            else
+            {
+                block_end = (block+1)*frame_n/block_n;
+            }
+
+            for (int frame_i = block_start; frame_i < block_end; frame_i++)
+            {
+                V_boot += V.at(frame_i);
+                V_exp_pe_boot += V_exp_pe.at(frame_i);
+            }
+
         }
+        V_boot /= frame_n;
+        V_exp_pe_boot /= frame_n;
 
-        V_block /= (block_end-block_start);
-        V_exp_pe_block /= (block_end-block_start);
-
-        chem_pot_block.at(block_i) = -log(V_exp_pe_block/V_block) / beta;
-        chem_pot_block_avg += -log(V_exp_pe_block/V_block) / beta;
+        chem_pot_boot.at(boot_i) = -log(V_exp_pe_boot/V_boot) / beta;
+        chem_pot_boot_avg += chem_pot_boot.at(boot_i);
 
     }
-    chem_pot_block_avg /= block_n;
 
-    double chem_pot_var = 0.0;
-    for (int block_i = 0; block_i < block_n; block_i++)
+    chem_pot_boot_avg /= boot_n;
+
+    double chem_pot_boot_var = 0.0;
+    for (int boot_i = 0; boot_i < boot_n; boot_i++)
     {
-        chem_pot_var += pow(chem_pot_block_avg - chem_pot_block.at(block_i), 2);
+        chem_pot_boot_var += pow(chem_pot_boot_avg - chem_pot_boot.at(boot_i), 2);
     }
-    chem_pot_var /= (block_n-1);
+    chem_pot_boot_var /= (boot_n-1);
 
     V_avg /= frame_n;
     V_exp_pe_avg /= frame_n;
@@ -297,9 +314,9 @@ int main(int argc, char* argv[])
 
     /* END ERROR ANALYSIS */
 
-    cout << chem_pot << " ± " << sqrt(chem_pot_var) << " kJ / mol" << endl;
-    cout << chem_pot/kcal << " ± " << sqrt(chem_pot_var)/kcal << " kcal / mol" << endl;
-    cout << chem_pot*beta << " ± " << sqrt(chem_pot_var)*beta << " kT" << endl;
+    cout << chem_pot << " ± " << sqrt(chem_pot_boot_var) << " kJ / mol" << endl;
+    cout << chem_pot/kcal << " ± " << sqrt(chem_pot_boot_var)/kcal << " kcal / mol" << endl;
+    cout << chem_pot*beta << " ± " << sqrt(chem_pot_boot_var)*beta << " kT" << endl;
 
     end = chrono::system_clock::now(); 
     chrono::duration<double> elapsed_seconds = end-start;
@@ -309,9 +326,9 @@ int main(int argc, char* argv[])
     ofs << "FINAL RESULT - Excess chemical potential of adding test particle" << endl;
     ofs << "-----------------------------------------------------------------------" << endl;
     ofs << fixed;
-    ofs << chem_pot << " ± " << sqrt(chem_pot_var) << " kJ / mol" << endl;
-    ofs << chem_pot/kcal << " ± " << sqrt(chem_pot_var)/kcal << " kcal / mol" << endl;
-    ofs << chem_pot*beta << " ± " << sqrt(chem_pot_var)*beta << " kT" << endl;
+    ofs << chem_pot << " ± " << sqrt(chem_pot_boot_var) << " kJ / mol" << endl;
+    ofs << chem_pot/kcal << " ± " << sqrt(chem_pot_boot_var)/kcal << " kcal / mol" << endl;
+    ofs << chem_pot*beta << " ± " << sqrt(chem_pot_boot_var)*beta << " kT" << endl;
     ofs.close();
 
     return 0;
