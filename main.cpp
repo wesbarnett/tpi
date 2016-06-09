@@ -220,7 +220,7 @@ int main(int argc, char* argv[])
     vector <double> V_exp_pe(frame_n);
     vector <double> V(frame_n);
 
-    #pragma omp parallel for schedule(guided, BLOCK)
+    #pragma omp parallel for schedule(guided, BLOCK) reduction(+:V_avg,V_exp_pe_avg)
     for (int frame_i = 0; frame_i < frame_n; frame_i++)
     {
 
