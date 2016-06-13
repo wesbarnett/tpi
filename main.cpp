@@ -29,7 +29,6 @@
 using namespace std;
 
 const double R = 8.3144598e-3; // kJ/(mol*K) gas constant
-const double kcal = 4.184; // kJ
 
 int main(int argc, char* argv[])
 {
@@ -65,7 +64,7 @@ int main(int argc, char* argv[])
     ofs << scientific << setprecision(6) << left;
 
     ofs << "-----------------------------------------------------------------------" << endl;
-    ofs << "Test particle insertion program -- Wes Barnett" << endl;
+    ofs << "         Test particle insertion program -- Wes Barnett" << endl;
     ofs << "-----------------------------------------------------------------------" << endl;
     time_t start_time = chrono::system_clock::to_time_t(start);
     ofs << setw(40) << "Started computation at:" << setw(20) << ctime(&start_time);
@@ -300,21 +299,18 @@ int main(int argc, char* argv[])
 
     /* END ERROR ANALYSIS */
 
-    cout << chem_pot << " ± " << sqrt(chem_pot_boot_var) << " kJ / mol" << endl;
-    cout << chem_pot/kcal << " ± " << sqrt(chem_pot_boot_var)/kcal << " kcal / mol" << endl;
-    cout << chem_pot*beta << " ± " << sqrt(chem_pot_boot_var)*beta << " kT" << endl;
+    string result_cmd = "echo 'μ (kJ / mol) = " + to_string(chem_pot) + " ± " + to_string(sqrt(chem_pot_boot_var)) + "' | cowsay";
+    system(result_cmd.c_str());
 
     end = chrono::system_clock::now(); 
     chrono::duration<double> elapsed_seconds = end-start;
     time_t end_time = chrono::system_clock::to_time_t(end);
     ofs << setw(40) << "Finished computation at:" << setw(20) << ctime(&end_time);
     ofs << "-----------------------------------------------------------------------" << endl;
-    ofs << "FINAL RESULT - Excess chemical potential of adding test particle" << endl;
+    ofs << "     FINAL RESULT - Excess chemical potential of test particle" << endl;
     ofs << "-----------------------------------------------------------------------" << endl;
     ofs << fixed;
-    ofs << chem_pot << " ± " << sqrt(chem_pot_boot_var) << " kJ / mol" << endl;
-    ofs << chem_pot/kcal << " ± " << sqrt(chem_pot_boot_var)/kcal << " kcal / mol" << endl;
-    ofs << chem_pot*beta << " ± " << sqrt(chem_pot_boot_var)*beta << " kT" << endl;
+    ofs << "μ (kJ / mol) = " << chem_pot << " ± " << sqrt(chem_pot_boot_var) << endl;
     ofs.close();
 
     return 0;
