@@ -29,6 +29,7 @@
 using namespace std;
 
 const double R = 8.3144598e-3; // kJ/(mol*K) gas constant
+const double kcal = 4.184; // kJ
 
 int main(int argc, char* argv[])
 {
@@ -234,15 +235,8 @@ int main(int argc, char* argv[])
                 pe += at.at(atomtype_i).CalcPE(frame_i, trj, rand_xyz, box, vol);
             }
 
-            V_exp_pe_tmp += exp(-pe * beta);
+            V_exp_pe_tmp += vol * exp(-pe * beta);
         }
-
-        double tail = 0.0;
-        for (int i = 0; i < atomtypes; i++)
-        {
-            tail += at.at(i).CalcTail(vol);
-        }
-        V_exp_pe_tmp *= rand_n * vol * exp(-tail * beta);
 
         V_exp_pe.at(frame_i) = V_exp_pe_tmp/(double)rand_n;
         V.at(frame_i) = vol;
@@ -307,16 +301,20 @@ int main(int argc, char* argv[])
     /* END ERROR ANALYSIS */
 
     cout << chem_pot << " ± " << sqrt(chem_pot_boot_var) << " kJ / mol" << endl;
+    cout << chem_pot/kcal << " ± " << sqrt(chem_pot_boot_var)/kcal << " kcal / mol" << endl;
+    cout << chem_pot*beta << " ± " << sqrt(chem_pot_boot_var)*beta << " kT" << endl;
 
     end = chrono::system_clock::now(); 
     chrono::duration<double> elapsed_seconds = end-start;
     time_t end_time = chrono::system_clock::to_time_t(end);
     ofs << setw(40) << "Finished computation at:" << setw(20) << ctime(&end_time);
     ofs << "-----------------------------------------------------------------------" << endl;
-    ofs << "       FINAL RESULT - Excess chemical potential test particle" << endl;
+    ofs << "FINAL RESULT - Excess chemical potential of adding test particle" << endl;
     ofs << "-----------------------------------------------------------------------" << endl;
     ofs << fixed;
-    ofs << "μ (kJ / mol) = " << chem_pot << " ± " << sqrt(chem_pot_boot_var) << endl;
+    ofs << chem_pot << " ± " << sqrt(chem_pot_boot_var) << " kJ / mol" << endl;
+    ofs << chem_pot/kcal << " ± " << sqrt(chem_pot_boot_var)/kcal << " kcal / mol" << endl;
+    ofs << chem_pot*beta << " ± " << sqrt(chem_pot_boot_var)*beta << " kT" << endl;
     ofs.close();
 
     return 0;
