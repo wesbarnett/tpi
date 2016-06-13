@@ -16,11 +16,11 @@ class Atomtype {
         double tail_factor;
         int n;
         double CalcLJ(coordinates &a, coordinates &b, triclinicbox &box);
-        double CalcTail(double rho);
     public:
         Atomtype();
         Atomtype(Trajectory &trj, string name, double c6, double c12, double rc2);
         double CalcPE(int frame_i, Trajectory &trj, coordinates &rand_xyz, triclinicbox &box, double vol);
+        double CalcTail(double vol);
 };
 
 #endif
