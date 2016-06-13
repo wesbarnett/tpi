@@ -20,7 +20,7 @@ Atomtype::Atomtype(Trajectory &trj, string name, double c6, double c12, double r
 }
 
 // Get the total PE contribution for a test particle for all atom of this atom type
-double Atomtype::CalcPE(int frame_i, Trajectory &trj, coordinates &rand_xyz, triclinicbox &box)
+double Atomtype::CalcPE(int frame_i, Trajectory &trj, coordinates &rand_xyz, triclinicbox &box, double vol)
 {
     double pe = 0.0;
 

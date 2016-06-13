@@ -19,7 +19,7 @@ class Atomtype {
     public:
         Atomtype();
         Atomtype(Trajectory &trj, string name, double c6, double c12, double rc2);
-        double CalcPE(int frame_i, Trajectory &trj, coordinates &rand_xyz, triclinicbox &box);
+        double CalcPE(int frame_i, Trajectory &trj, coordinates &rand_xyz, triclinicbox &box, double vol);
         double CalcTail(double vol);
 };
 

@@ -223,22 +223,29 @@ int main(int argc, char* argv[])
         uniform_real_distribution<double> distrib_z(0.0, box.at(Z).at(Z));
         vector <coordinates> rand_xyz(rand_n);
         double vol = volume(box);
-        double exp_pe = 0.0;
+        double V_exp_pe_tmp = 0.0;
 
-        double pe = 0.0;
-        for (int atomtype_i = 0; atomtype_i < atomtypes; atomtype_i++)
+        for (int rand_i = 0; rand_i < rand_n; rand_i++)
         {
-            for (int rand_i = 0; rand_i < rand_n; rand_i++)
+            coordinates rand_xyz(distrib_x(gen), distrib_y(gen), distrib_z(gen));
+            double pe = 0.0;
+            for (int atomtype_i = 0; atomtype_i < atomtypes; atomtype_i++)
             {
-                coordinates rand_xyz(distrib_x(gen), distrib_y(gen), distrib_z(gen));
-                pe += at.at(atomtype_i).CalcPE(frame_i, trj, rand_xyz, box);
+                pe += at.at(atomtype_i).CalcPE(frame_i, trj, rand_xyz, box, vol);
             }
-            pe += rand_n * at.at(atomtype_i).CalcTail(vol);
+
+            V_exp_pe_tmp += exp(-pe * beta);
         }
 
-        V.at(frame_i) = vol;
-        V_exp_pe.at(frame_i) = vol * exp(-pe*beta)/(double)rand_n;
+        double tail = 0.0;
+        for (int i = 0; i < atomtypes; i++)
+        {
+            tail += at.at(i).CalcTail(vol);
+        }
+        V_exp_pe_tmp *= rand_n * vol * exp(-tail * beta);
 
+        V_exp_pe.at(frame_i) = V_exp_pe_tmp/(double)rand_n;
+        V.at(frame_i) = vol;
         V_avg += V.at(frame_i);
         V_exp_pe_avg += V_exp_pe.at(frame_i);
     }
