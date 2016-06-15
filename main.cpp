@@ -189,7 +189,7 @@ int main(int argc, char* argv[])
         double c12 = 4.0 * eps * pow(sig, 12);
         ofs << setw(20) << atomtype_name << setw(20) << atomtype_sigma << setw(20) << atomtype_epsilon << setw(20) << c6 << setw(20) << c12 << endl;
         Atomtype at_tmp(trj, atomtype_name, c6, c12, rcut2);
-        at.at(i) = at_tmp;
+        at[i] = at_tmp;
     }
 
     /* END CONFIGURATION FILE PARSING */
@@ -212,35 +212,36 @@ int main(int argc, char* argv[])
     {
 
         int thread_id = omp_get_thread_num();
-        if (frame_i % frame_freq == 0)
-        {
-            cout << "Thread: " << thread_id << " Frame: " << frame_i << endl;
-        }
 
         triclinicbox box = trj.GetBox(frame_i);
-        uniform_real_distribution<double> distrib_x(0.0, box.at(X).at(X));
-        uniform_real_distribution<double> distrib_y(0.0, box.at(Y).at(Y));
-        uniform_real_distribution<double> distrib_z(0.0, box.at(Z).at(Z));
-        vector <coordinates> rand_xyz(rand_n);
+        vector <coordinates> rand_xyz;
+        gen_rand_box_points(rand_xyz, box, rand_n);
         double vol = volume(box);
         double V_exp_pe_tmp = 0.0;
 
         for (int rand_i = 0; rand_i < rand_n; rand_i++)
         {
-            coordinates rand_xyz(distrib_x(gen), distrib_y(gen), distrib_z(gen));
             double pe = 0.0;
             for (int atomtype_i = 0; atomtype_i < atomtypes; atomtype_i++)
             {
-                pe += at.at(atomtype_i).CalcPE(frame_i, trj, rand_xyz, box, vol);
+                pe += at[atomtype_i].CalcPE(frame_i, trj, rand_xyz[rand_i], box, vol);
             }
 
-            V_exp_pe_tmp += vol * exp(-pe * beta);
+            V_exp_pe_tmp += exp(-pe * beta);
         }
 
-        V_exp_pe.at(frame_i) = V_exp_pe_tmp/(double)rand_n;
-        V.at(frame_i) = vol;
-        V_avg += V.at(frame_i);
-        V_exp_pe_avg += V_exp_pe.at(frame_i);
+        V_exp_pe[frame_i] = vol * V_exp_pe_tmp/(double)rand_n;
+        V[frame_i] = vol;
+        V_avg += V[frame_i];
+        V_exp_pe_avg += V_exp_pe[frame_i];
+
+        if (frame_i % frame_freq == 0)
+        {
+            printf("Thread: %-1d ", thread_id); 
+            printf("Frame: %-8d ", frame_i);
+            printf("μ = %-12.6f ", -log(V_exp_pe[frame_i]/V[frame_i]) / beta);
+            printf("<μ> = %-12.6f\n", -log(V_exp_pe_avg/V_avg) / beta);
+        }
     }
 
     /* END MAIN ANALYSIS */
@@ -276,14 +277,14 @@ int main(int argc, char* argv[])
 
             for (int frame_i = block_start; frame_i < block_end; frame_i++)
             {
-                V_boot += V.at(frame_i);
-                V_exp_pe_boot += V_exp_pe.at(frame_i);
+                V_boot += V[frame_i];
+                V_exp_pe_boot += V_exp_pe[frame_i];
             }
 
         }
 
-        chem_pot_boot.at(boot_i) = -log(V_exp_pe_boot/V_boot) / beta;
-        chem_pot_boot_avg += chem_pot_boot.at(boot_i);
+        chem_pot_boot[boot_i] = -log(V_exp_pe_boot/V_boot) / beta;
+        chem_pot_boot_avg += chem_pot_boot[boot_i];
 
     }
 
@@ -292,15 +293,14 @@ int main(int argc, char* argv[])
     double chem_pot_boot_var = 0.0;
     for (int boot_i = 0; boot_i < boot_n; boot_i++)
     {
-        chem_pot_boot_var += pow(chem_pot_boot_avg - chem_pot_boot.at(boot_i), 2);
+        chem_pot_boot_var += pow(chem_pot_boot_avg - chem_pot_boot[boot_i], 2);
     }
     chem_pot_boot_var /= (boot_n-1);
     double chem_pot = -log(V_exp_pe_avg/V_avg) / beta;
 
     /* END ERROR ANALYSIS */
 
-    string result_cmd = "echo 'μ (kJ / mol) = " + to_string(chem_pot) + " ± " + to_string(sqrt(chem_pot_boot_var)) + "' | cowsay";
-    system(result_cmd.c_str());
+    cout << "μ (kJ / mol) = " << chem_pot << " ± " << sqrt(chem_pot_boot_var) << endl;
 
     end = chrono::system_clock::now(); 
     chrono::duration<double> elapsed_seconds = end-start;

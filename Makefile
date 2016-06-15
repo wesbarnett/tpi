@@ -1,2 +1,2 @@
 all:
-	g++ main.cpp -Ofast Atomtype.cpp -o run -I. -lgmxcpp -fopenmp -Wall
+	g++ main.cpp -O2 Atomtype.cpp /home/wes/libgmxcpp/lib/libgmxcpp.so -o run -I. -I/home/wes/libgmxcpp/include -fopenmp -Wall
