@@ -28,24 +28,16 @@ double Atomtype::CalcPE(int frame_i, Trajectory &trj, coordinates &rand_xyz, cub
     double pe = 0.0;
     int atom_i;
     coordinates8 rand_xyz8(rand_xyz);
-    //float* __restrict__ result;
-    union {
-        __m256 pe_tmp;
-        float result[8];
-    };
+    float result[n-8] __attribute__((aligned (16)));;
     for (atom_i = 0; atom_i < this->n-8; atom_i+=8)
     {
         coordinates8 atom_xyz = trj.GetXYZ8(frame_i, this->name, atom_i);
         __m256 r2_8 = distance2(atom_xyz, rand_xyz8, box);
         __m256 mask = _mm256_cmp_ps(r2_8, rcut2_8, _CMP_LT_OS);
-        __m256 r6 = _mm256_and_ps(mask, _mm256_mul_ps(_mm256_mul_ps(r2_8, r2_8), r2_8));
-        __m256 ri6 = _mm256_and_ps(mask, _mm256_div_ps(one,r6));
-        pe_tmp = _mm256_and_ps(mask, _mm256_mul_ps(ri6, _mm256_sub_ps(_mm256_mul_ps(c12_8, ri6), c6_8)));
-        //_mm256_store_ps(result+atom_i, pe_tmp); //TODO
-        for (int i = 0; i < 8; i++)
-        {
-            pe += result[i];
-        }
+        __m256 r6 = _mm256_mul_ps(_mm256_mul_ps(r2_8, r2_8), r2_8);
+        __m256 ri6 = _mm256_div_ps(one,r6);
+        __m256 pe_tmp = _mm256_and_ps(mask, _mm256_mul_ps(ri6, _mm256_sub_ps(_mm256_mul_ps(c12_8, ri6), c6_8)));
+        _mm256_store_ps(result+atom_i, pe_tmp); //TODO
     }
     for (; atom_i < this->n; ++atom_i)
     {
@@ -56,6 +48,10 @@ double Atomtype::CalcPE(int frame_i, Trajectory &trj, coordinates &rand_xyz, cub
             double ri6 = 1.0/(pow(r2,3));
             pe += ri6*(this->c12*ri6 - this->c6);
         }
+    }
+    for (int i = 0; i < this->n-8; i++)
+    {
+        pe += result[i];
     }
 
 

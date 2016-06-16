@@ -24,7 +24,6 @@ class Atomtype {
         Atomtype();
         Atomtype(Trajectory &trj, string name, double c6, double c12, double rc2);
         double CalcPE(int frame_i, Trajectory &trj, coordinates &rand_xyz, cubicbox_m256 &box, double vol);
-        double CalcTail(double vol);
 };
 
 #endif
