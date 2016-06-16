@@ -37,7 +37,7 @@ double Atomtype::CalcPE(int frame_i, Trajectory &trj, coordinates &rand_xyz, cub
         __m256 r6 = _mm256_mul_ps(_mm256_mul_ps(r2_8, r2_8), r2_8);
         __m256 ri6 = _mm256_div_ps(one,r6);
         __m256 pe_tmp = _mm256_and_ps(mask, _mm256_mul_ps(ri6, _mm256_sub_ps(_mm256_mul_ps(c12_8, ri6), c6_8)));
-        _mm256_store_ps(result+atom_i, pe_tmp); //TODO
+        _mm256_store_ps(result+atom_i, pe_tmp);
     }
     for (; atom_i < this->n; ++atom_i)
     {
