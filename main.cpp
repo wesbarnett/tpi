@@ -10,7 +10,7 @@
  *  - Isothermal-isobaric ensemble
  */
 
-#define BLOCK 15
+#define BLOCK 100
 
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/ini_parser.hpp>
