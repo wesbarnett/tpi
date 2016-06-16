@@ -213,7 +213,7 @@ int main(int argc, char* argv[])
 
         int thread_id = omp_get_thread_num();
 
-        triclinicbox box = trj.GetBox(frame_i);
+        cubicbox_m256 box = trj.GetCubicBoxM256(frame_i);
         vector <coordinates> rand_xyz;
         gen_rand_box_points(rand_xyz, box, rand_n);
         double vol = volume(box);
