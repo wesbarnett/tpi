@@ -66,7 +66,7 @@ class Atomtype {
 
         double CalcPE(int frame_i, Trajectory &trj, coordinates &rand_xyz, cubicbox_m256 &box, double vol)
         {
-            double pe = 0.0;
+            float pe = 0.0;
             int atom_i = 0;
 
             /* BEGIN SIMD SECTION */
@@ -95,10 +95,10 @@ class Atomtype {
             for (; atom_i < this->n; atom_i++)
             {
                 coordinates atom_xyz = trj.GetXYZ(frame_i, this->name, atom_i);
-                double r2 = distance2(atom_xyz, rand_xyz, cubicbox(box));
+                float r2 = distance2(atom_xyz, rand_xyz, cubicbox(box));
                 if (r2 < this->rcut2)
                 {
-                    double ri6 = 1.0/(pow(r2,3));
+                    float ri6 = 1.0/(pow(r2,3));
                     pe += ri6*(this->c12*ri6 - this->c6);
                 }
             }
