@@ -17,7 +17,6 @@ class Atomtype {
         int n;
         double CalcLJ(coordinates &a, coordinates &b, triclinicbox &box);
         __m256 rcut2_8;
-        __m256 one;
         __m256 c12_8;
         __m256 c6_8;
     public:
