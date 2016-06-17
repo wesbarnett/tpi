@@ -1,5 +1,6 @@
 /* 
  * Test particle insertion
+ * Used SIMD intrinsics (at least AVX necessary)
  * James W. Barnett
  * May 26, 2016
  * 
@@ -7,10 +8,8 @@
  *  - Must use a cubic box (does not have to be equal on all sides)
  *  - Particle being inserted has no charge, so electrostatics excluded
  *  - Every atom type needs to have its own index group!
- *  - Isothermal-isobaric ensemble
+ *  - Isothermal-isobaric ensemble or NVT
  */
-
-#define BLOCK 15
 
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/ini_parser.hpp>
@@ -30,6 +29,7 @@ using namespace std;
 const double R = 8.3144598e-3; // kJ/(mol*K) gas constant
 
 class Atomtype {
+
     private:
 
         string name;
@@ -40,6 +40,7 @@ class Atomtype {
         double rcut2;
         double tail_factor;
         int n;
+
         __m256 rcut2_8;
         __m256 c12_8;
         __m256 c6_8;
@@ -65,12 +66,16 @@ class Atomtype {
 
         double CalcPE(int frame_i, Trajectory &trj, coordinates &rand_xyz, cubicbox_m256 &box, double vol)
         {
+            double pe = 0.0;
+            int atom_i = 0;
+
+            /* BEGIN SIMD SECTION */
+
             coordinates8 rand_xyz8(rand_xyz), atom_xyz;
             __m256 r2_8, mask, r6, ri6, pe_tmp;
             __m256 pe_sum = _mm256_setzero_ps();
             float result[n] __attribute__((aligned (16)));
-            double pe = 0.0;
-            int atom_i = 0;
+
             for (; atom_i < this->n-8; atom_i+=8)
             {
                 atom_xyz = trj.GetXYZ8(frame_i, this->name, atom_i);
@@ -82,6 +87,13 @@ class Atomtype {
                 pe_sum = _mm256_add_ps(pe_tmp, pe_sum);
             }
             _mm256_store_ps(result, pe_sum);
+            for (int i = 0; i < 8; i++)
+            {
+                pe += result[i];
+            }
+
+            /* END SIMD SECTION */
+
             for (; atom_i < this->n; atom_i++)
             {
                 coordinates atom_xyz = trj.GetXYZ(frame_i, this->name, atom_i);
@@ -91,10 +103,6 @@ class Atomtype {
                     double ri6 = 1.0/(pow(r2,3));
                     pe += ri6*(this->c12*ri6 - this->c6);
                 }
-            }
-            for (int i = 0; i < 8; i++)
-            {
-                pe += result[i];
             }
 
             pe += this->n/vol * this->tail_factor;;
@@ -108,7 +116,7 @@ int main(int argc, char* argv[])
     chrono::time_point<std::chrono::system_clock> start, end;
     start = std::chrono::system_clock::now(); 
 
-    /* BEGIN CONFIGURATION FILE PARSING */
+    /***** BEGIN CONFIGURATION FILE PARSING *****/
 
     if (argc != 2)
     {
@@ -267,12 +275,12 @@ int main(int argc, char* argv[])
         at[i] = at_tmp;
     }
 
-    /* END CONFIGURATION FILE PARSING */
+    /***** END CONFIGURATION FILE PARSING *****/
 
     const int frame_n = trj.GetNFrames();
     ofs << setw(40) << "Number of frames used:" << setw(20) << frame_n << endl;
 
-    /* BEGIN MAIN ANALYSIS */
+    /***** BEGIN MAIN ANALYSIS *****/
 
     random_device rd;
     mt19937 gen(rd());
@@ -289,7 +297,7 @@ int main(int argc, char* argv[])
         double pe;
         vector <coordinates> rand_xyz;
 
-        #pragma omp for schedule(guided, BLOCK) reduction(+:V_avg,V_exp_pe_avg)
+        #pragma omp for schedule(static) reduction(+:V_avg,V_exp_pe_avg)
         for (int frame_i = 0; frame_i < frame_n; frame_i++)
         {
 
@@ -324,9 +332,9 @@ int main(int argc, char* argv[])
 
     }
 
-    /* END MAIN ANALYSIS */
+    /***** END MAIN ANALYSIS *****/
 
-    /* BEGIN ERROR ANALYSIS */
+    /***** BEGIN ERROR ANALYSIS *****/
 
     vector <double> chem_pot_boot(boot_n);
     double chem_pot_boot_avg = 0.0;
@@ -378,7 +386,7 @@ int main(int argc, char* argv[])
     chem_pot_boot_var /= (boot_n-1);
     double chem_pot = -log(V_exp_pe_avg/V_avg) * betai;
 
-    /* END ERROR ANALYSIS */
+    /***** END ERROR ANALYSIS *****/
 
     cout << "---------------------------------------------------------" << endl;
     cout << "    μ (kJ / mol) = " << chem_pot << " ± " << sqrt(chem_pot_boot_var) << endl;
