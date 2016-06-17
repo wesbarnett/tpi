@@ -1,0 +1,10 @@
+xtcfile     = /nas2/wes/TIP4P2005/100ns/prd.xtc
+ndxfile     = /nas2/wes/TIP4P2005/100ns/index.ndx
+outfile     = tip4p2005_tpi.dat
+frame_freq  = 1
+rand_n      = 1000
+rcut        = 0.9
+T           = 298.15
+testtype    = 3.73000e-01  1.23054e+00
+atomtypes   = 1
+atomtype1   = OW  3.15890e-01  7.74900e-01
