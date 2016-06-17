@@ -113,8 +113,10 @@ class Atomtype {
 
 int main(int argc, char* argv[])
 {
+
     chrono::time_point<std::chrono::system_clock> start, end;
     start = std::chrono::system_clock::now(); 
+
 
     /***** BEGIN CONFIGURATION FILE PARSING *****/
 
@@ -277,10 +279,11 @@ int main(int argc, char* argv[])
 
     /***** END CONFIGURATION FILE PARSING *****/
 
-    const int frame_n = trj.GetNFrames();
-    ofs << setw(40) << "Number of frames used:" << setw(20) << frame_n << endl;
 
     /***** BEGIN MAIN ANALYSIS *****/
+
+    const int frame_n = trj.GetNFrames();
+    ofs << setw(40) << "Number of frames used:" << setw(20) << frame_n << endl;
 
     random_device rd;
     mt19937 gen(rd());
@@ -301,7 +304,6 @@ int main(int argc, char* argv[])
         for (int frame_i = 0; frame_i < frame_n; frame_i++)
         {
 
-            thread_id = omp_get_thread_num();
             box = trj.GetCubicBoxM256(frame_i);
             gen_rand_box_points(rand_xyz, box, rand_n);
             V[frame_i] = volume(box);
@@ -323,16 +325,19 @@ int main(int argc, char* argv[])
 
             if (frame_i % frame_freq == 0)
             {
+                thread_id = omp_get_thread_num();
                 printf("Thread: %-1d ", thread_id); 
                 printf("Frame: %-8d ", frame_i);
                 printf("μ = %-12.6f ", -log(V_exp_pe[frame_i]/V[frame_i]) * betai);
                 printf("<μ> = %-12.6f\n", -log(V_exp_pe_avg/V_avg) * betai);
             }
+
         }
 
     }
 
     /***** END MAIN ANALYSIS *****/
+
 
     /***** BEGIN ERROR ANALYSIS *****/
 
@@ -387,6 +392,7 @@ int main(int argc, char* argv[])
     double chem_pot = -log(V_exp_pe_avg/V_avg) * betai;
 
     /***** END ERROR ANALYSIS *****/
+
 
     cout << "---------------------------------------------------------" << endl;
     cout << "    μ (kJ / mol) = " << chem_pot << " ± " << sqrt(chem_pot_boot_var) << endl;
