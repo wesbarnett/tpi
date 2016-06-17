@@ -90,6 +90,7 @@ int main(int argc, char* argv[])
     cout << "frame_freq = " << frame_freq << endl;
 
     const int rand_n = strtol(pt.get<std::string>("rand_n","1000").c_str(), &endptr, 10);
+    const float rand_ni = 1.0/rand_n;
     if (*endptr != ' ' && *endptr != 0)
     {
         cout << "ERROR: 'rand_n' must be an integer." << endl;
@@ -144,6 +145,7 @@ int main(int argc, char* argv[])
     cout << "T = " << T << endl;
     ofs << setw(40) << "System temperature (K):" << setw(20) << T << endl;
     const double beta = 1.0/(R * T); // kJ/mol
+    const double betai = (R * T);
 
     const int atomtypes = strtol(pt.get<std::string>("atomtypes","1").c_str(), &endptr, 10);
     if (*endptr != ' ' && *endptr != 0)
@@ -204,44 +206,49 @@ int main(int argc, char* argv[])
     double V_avg = 0.0;
     double V_exp_pe_avg = 0.0;
 
-    vector <double> V_exp_pe(frame_n);
+    vector <double> V_exp_pe(frame_n,0.0);
     vector <double> V(frame_n);
 
-    #pragma omp parallel for schedule(guided, BLOCK) reduction(+:V_avg,V_exp_pe_avg)
-    for (int frame_i = 0; frame_i < frame_n; frame_i++)
+    #pragma omp parallel
     {
-
-        int thread_id = omp_get_thread_num();
-
-        cubicbox_m256 box = trj.GetCubicBoxM256(frame_i);
+        cubicbox_m256 box;
+        int thread_id;
+        double pe;
         vector <coordinates> rand_xyz;
-        gen_rand_box_points(rand_xyz, box, rand_n);
-        double vol = volume(box);
-        double V_exp_pe_tmp = 0.0;
 
-        for (int rand_i = 0; rand_i < rand_n; rand_i++)
+        #pragma omp for schedule(guided, BLOCK) reduction(+:V_avg,V_exp_pe_avg)
+        for (int frame_i = 0; frame_i < frame_n; frame_i++)
         {
-            double pe = 0.0;
-            for (int atomtype_i = 0; atomtype_i < atomtypes; atomtype_i++)
+
+            thread_id = omp_get_thread_num();
+            box = trj.GetCubicBoxM256(frame_i);
+            gen_rand_box_points(rand_xyz, box, rand_n);
+            V[frame_i] = volume(box);
+
+            for (int rand_i = 0; rand_i < rand_n; rand_i++)
             {
-                pe += at[atomtype_i].CalcPE(frame_i, trj, rand_xyz[rand_i], box, vol);
+                pe = 0.0;
+                for (int atomtype_i = 0; atomtype_i < atomtypes; atomtype_i++)
+                {
+                    pe += at[atomtype_i].CalcPE(frame_i, trj, rand_xyz[rand_i], box, V[frame_i]);
+                }
+
+                V_exp_pe[frame_i] += exp(-pe * beta);
             }
 
-            V_exp_pe_tmp += exp(-pe * beta);
+            V_exp_pe[frame_i] *= V[frame_i] * rand_ni;
+            V_avg += V[frame_i];
+            V_exp_pe_avg += V_exp_pe[frame_i];
+
+            if (frame_i % frame_freq == 0)
+            {
+                printf("Thread: %-1d ", thread_id); 
+                printf("Frame: %-8d ", frame_i);
+                printf("μ = %-12.6f ", -log(V_exp_pe[frame_i]/V[frame_i]) * betai);
+                printf("<μ> = %-12.6f\n", -log(V_exp_pe_avg/V_avg) * betai);
+            }
         }
 
-        V_exp_pe[frame_i] = vol * V_exp_pe_tmp/(double)rand_n;
-        V[frame_i] = vol;
-        V_avg += V[frame_i];
-        V_exp_pe_avg += V_exp_pe[frame_i];
-
-        if (frame_i % frame_freq == 0)
-        {
-            printf("Thread: %-1d ", thread_id); 
-            printf("Frame: %-8d ", frame_i);
-            printf("μ = %-12.6f ", -log(V_exp_pe[frame_i]/V[frame_i]) / beta);
-            printf("<μ> = %-12.6f\n", -log(V_exp_pe_avg/V_avg) / beta);
-        }
     }
 
     /* END MAIN ANALYSIS */
@@ -283,7 +290,7 @@ int main(int argc, char* argv[])
 
         }
 
-        chem_pot_boot[boot_i] = -log(V_exp_pe_boot/V_boot) / beta;
+        chem_pot_boot[boot_i] = -log(V_exp_pe_boot/V_boot) * betai;
         chem_pot_boot_avg += chem_pot_boot[boot_i];
 
     }
@@ -296,7 +303,7 @@ int main(int argc, char* argv[])
         chem_pot_boot_var += pow(chem_pot_boot_avg - chem_pot_boot[boot_i], 2);
     }
     chem_pot_boot_var /= (boot_n-1);
-    double chem_pot = -log(V_exp_pe_avg/V_avg) / beta;
+    double chem_pot = -log(V_exp_pe_avg/V_avg) * betai;
 
     /* END ERROR ANALYSIS */
 
