@@ -10,7 +10,7 @@
  *  - Isothermal-isobaric ensemble
  */
 
-#define BLOCK 100
+#define BLOCK 15
 
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/ini_parser.hpp>
@@ -300,9 +300,9 @@ int main(int argc, char* argv[])
 
     /* END ERROR ANALYSIS */
 
-    cout << "----------------------------------------------------------------------" << endl;
-    cout << "μ (kJ / mol) = " << chem_pot << " ± " << sqrt(chem_pot_boot_var) << endl;
-    cout << "----------------------------------------------------------------------" << endl;
+    cout << "---------------------------------------------------------" << endl;
+    cout << "    μ (kJ / mol) = " << chem_pot << " ± " << sqrt(chem_pot_boot_var) << endl;
+    cout << "---------------------------------------------------------" << endl;
 
     end = chrono::system_clock::now(); 
     chrono::duration<double> elapsed_seconds = end-start;
