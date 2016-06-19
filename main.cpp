@@ -357,13 +357,13 @@ int main(int argc, char* argv[])
             int block_end;
             int block_start = (double)block/block_n * frame_n;
 
-            if (block == block_n-1)
+            if (block != block_n-1)
             {
-                block_end = frame_n;
+                block_end = (double)(block+1)/block_n * frame_n;
             }
             else
             {
-                block_end = (double)(block+1)/block_n * frame_n;
+                block_end = frame_n;
             }
 
             for (int frame_i = block_start; frame_i < block_end; frame_i++)
