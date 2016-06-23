@@ -303,9 +303,8 @@ int main(int argc, char* argv[])
 
     while (n != 0)
     {
-        printf("Reading in additional frames...\n");
-        trj.read_next(chunk);
-        n = trj.GetNFrames();
+        printf("Reading in %d frames...\n", chunk);
+        n = trj.read_next(chunk);
         printf("Read in %d frames.\n", n);
         V_exp_pe.resize(V_exp_pe.size()+n,0.0);
         V.resize(V_exp_pe.size()+n);
