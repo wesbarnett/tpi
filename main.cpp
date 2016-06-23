@@ -257,7 +257,6 @@ int main(int argc, char* argv[])
     ofs << setw(20) << "INDEX NAME" << setw(20) << "SIGMA (nm)" << setw(20) << "EPSILON (kJ/mol)" << setw(20) << "C6" << setw(20) << "C12" << endl;
 
     Trajectory trj(xtcfile, ndxfile);
-    trj.read();
 
     for (int i = 0; i < atomtypes; i++)
     {
@@ -283,58 +282,71 @@ int main(int argc, char* argv[])
 
     /***** BEGIN MAIN ANALYSIS *****/
 
-    const int frame_n = trj.GetNFrames();
-    ofs << setw(40) << "Number of frames used:" << setw(20) << frame_n << endl;
-
     random_device rd;
     mt19937 gen(rd());
     double V_avg = 0.0;
     double V_exp_pe_avg = 0.0;
 
-    vector <double> V_exp_pe(frame_n,0.0);
-    vector <double> V(frame_n);
+    vector <double> V_exp_pe;
+    vector <double> V;
 
-    #pragma omp parallel
+    int frame_total = 0;
+    const int chunk = nthreads*1000;
+    int n = -1;
+
+    while (n != 0)
     {
-        cubicbox_m256 box;
-        int thread_id;
-        double pe;
-        vector <coordinates> rand_xyz;
+        printf("Reading in additional frames...\n");
+        trj.read_next(chunk);
+        n = trj.GetNFrames();
+        printf("Read in %d frames.\n", n);
 
-        #pragma omp for schedule(static) reduction(+:V_avg,V_exp_pe_avg)
-        for (int frame_i = 0; frame_i < frame_n; frame_i++)
+        V_exp_pe.resize(V_exp_pe.size()+n,0.0);
+        V.resize(V_exp_pe.size()+n);
+
+        #pragma omp parallel
         {
+            cubicbox_m256 box;
+            int thread_id;
+            double pe;
+            vector <coordinates> rand_xyz;
 
-            box = trj.GetCubicBoxM256(frame_i);
-            gen_rand_box_points(rand_xyz, box, rand_n);
-            V[frame_i] = volume(box);
-
-            for (int rand_i = 0; rand_i < rand_n; rand_i++)
+            #pragma omp for schedule(static) reduction(+:V_avg,V_exp_pe_avg)
+            for (int frame_i = 0; frame_i < n; frame_i++)
             {
-                pe = 0.0;
-                for (int atomtype_i = 0; atomtype_i < atomtypes; atomtype_i++)
+
+                int i = frame_i + frame_total;
+                box = trj.GetCubicBoxM256(frame_i);
+                gen_rand_box_points(rand_xyz, box, rand_n);
+                V[i] = volume(box);
+
+                for (int rand_i = 0; rand_i < rand_n; rand_i++)
                 {
-                    pe += at[atomtype_i].CalcPE(frame_i, trj, rand_xyz[rand_i], box, V[frame_i]);
+                    pe = 0.0;
+                    for (int atomtype_i = 0; atomtype_i < atomtypes; atomtype_i++)
+                    {
+                        pe += at[atomtype_i].CalcPE(frame_i, trj, rand_xyz[rand_i], box, V[i]);
+                    }
+
+                    V_exp_pe[i] += exp(-pe * beta);
                 }
 
-                V_exp_pe[frame_i] += exp(-pe * beta);
+                V_exp_pe[i] *= V[i] * rand_ni;
+                V_avg += V[i];
+                V_exp_pe_avg += V_exp_pe[i];
+
+                if (frame_i % frame_freq == 0)
+                {
+                    thread_id = omp_get_thread_num();
+                    printf("Thread: %-1d ", thread_id); 
+                    printf("Frame: %-8d ", i);
+                    printf("μ = %-12.6f ", -log(V_exp_pe[i]/V[i]) * betai);
+                    printf("<μ> = %-12.6f\n", -log(V_exp_pe_avg/V_avg) * betai);
+                }
+
             }
-
-            V_exp_pe[frame_i] *= V[frame_i] * rand_ni;
-            V_avg += V[frame_i];
-            V_exp_pe_avg += V_exp_pe[frame_i];
-
-            if (frame_i % frame_freq == 0)
-            {
-                thread_id = omp_get_thread_num();
-                printf("Thread: %-1d ", thread_id); 
-                printf("Frame: %-8d ", frame_i);
-                printf("μ = %-12.6f ", -log(V_exp_pe[frame_i]/V[frame_i]) * betai);
-                printf("<μ> = %-12.6f\n", -log(V_exp_pe_avg/V_avg) * betai);
-            }
-
         }
-
+        frame_total += n;
     }
 
     /***** END MAIN ANALYSIS *****/
@@ -358,15 +370,15 @@ int main(int argc, char* argv[])
 
             int block = dist(gen);
             int block_end;
-            int block_start = (double)block/block_n * frame_n;
+            int block_start = (double)block/block_n * frame_total;
 
             if (block != block_n-1)
             {
-                block_end = (double)(block+1)/block_n * frame_n;
+                block_end = (double)(block+1)/block_n * frame_total;
             }
             else
             {
-                block_end = frame_n;
+                block_end = frame_total;
             }
 
             for (int frame_i = block_start; frame_i < block_end; frame_i++)
