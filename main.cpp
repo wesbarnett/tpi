@@ -257,6 +257,7 @@ int main(int argc, char* argv[])
     ofs << setw(20) << "INDEX NAME" << setw(20) << "SIGMA (nm)" << setw(20) << "EPSILON (kJ/mol)" << setw(20) << "C6" << setw(20) << "C12" << endl;
 
     Trajectory trj(xtcfile, ndxfile);
+    trj.read();
 
     for (int i = 0; i < atomtypes; i++)
     {
