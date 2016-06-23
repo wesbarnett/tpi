@@ -307,7 +307,6 @@ int main(int argc, char* argv[])
         trj.read_next(chunk);
         n = trj.GetNFrames();
         printf("Read in %d frames.\n", n);
-
         V_exp_pe.resize(V_exp_pe.size()+n,0.0);
         V.resize(V_exp_pe.size()+n);
 
@@ -354,6 +353,7 @@ int main(int argc, char* argv[])
             }
         }
         frame_total += n;
+        printf("<μ> = %-12.6f\n", -log(V_exp_pe_avg/V_avg) * betai);
     }
 
     /***** END MAIN ANALYSIS *****/
