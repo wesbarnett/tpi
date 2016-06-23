@@ -171,6 +171,13 @@ int main(int argc, char* argv[])
         return -1;
     }
     cout << "frame_freq = " << frame_freq << endl;
+    const int chunk_size = strtol(pt.get<std::string>("chunk_size","1000").c_str(), &endptr, 10);
+    if (*endptr != ' ' && *endptr != 0)
+    {
+        cout << "ERROR: 'chunk_size' must be an integer." << endl;
+        return -1;
+    }
+    cout << "chunk_size = " << chunk_size << endl;
 
     const int rand_n = strtol(pt.get<std::string>("rand_n","1000").c_str(), &endptr, 10);
     const float rand_ni = 1.0/rand_n;
@@ -291,7 +298,7 @@ int main(int argc, char* argv[])
     vector <double> V;
 
     int frame_total = 0;
-    const int chunk = nthreads*1000;
+    const int chunk = nthreads*chunk_size;
     int n = -1;
 
     while (n != 0)
