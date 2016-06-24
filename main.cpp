@@ -7,7 +7,7 @@
  * Limitations:
  *  - Must use a cubic box (does not have to be equal on all sides)
  *  - Particle being inserted has no charge, so electrostatics excluded
- *  - Every atom type needs to have its own index group!
+ *  - Every atom type with vdw interactions needs to have its own index group!
  *  - Isothermal-isobaric ensemble or NVT
  */
 
@@ -18,15 +18,18 @@
 #include <ctime>
 #include <iomanip>
 #include <iostream>
-#include "omp.h"
-#include <string>
 #include <random>
+#include <string>
 
 #include "gmxcpp/Trajectory.h"
+#include "gmxcpp/Utils.h"
+
+#include "omp.h"
 
 using namespace std;
 
 const double R = 8.3144598e-3; // kJ/(mol*K) gas constant
+double do_uncertainty(int boot_n, int block_n, int frame_total, double betai, vector <double> &V, vector <double> V_exp_pe);
 
 class Atomtype {
 
@@ -69,6 +72,8 @@ class Atomtype {
             int atom_i = 0;
 
             /* BEGIN SIMD SECTION */
+            // This performs the exact same calculation after the SIMD section
+            // but doing it on 8 atoms at a time using SIMD instructions.
 
             coordinates8 rand_xyz8(rand_xyz), atom_xyz;
             __m256 r2_8, mask, r6, ri6, pe_tmp;
@@ -272,29 +277,42 @@ int main(int argc, char* argv[])
 
     int frame_total = 0;
     const int chunk = nthreads*chunk_size;
-    int n = -1;
+    int frames_read = -1;
 
-    while (n != 0)
+    cout << left;
+
+    // Read in frames chunk by chunk (saves on RAM).
+    while (frames_read != 0)
     {
-        printf("Reading in %d frames...\n", chunk);
-        n = trj.read_next(chunk);
-        printf("Read in %d frames.\n", n);
-        V_exp_pe.resize(V_exp_pe.size()+n,0.0);
-        V.resize(V_exp_pe.size()+n);
+        cout << "Reading in " << chunk << " frames..." << endl;
+        frames_read = trj.read_next(chunk);
+        cout << "Finished reading in " << frames_read << " frames." << endl;
 
+        // Expand for additional frames read in
+        V_exp_pe.resize(V_exp_pe.size()+frames_read, 0.0);
+        V.resize(V_exp_pe.size()+frames_read);
+
+        // Now split up the frames that we read in to each processor
         #pragma omp parallel
         {
+
             cubicbox_m256 box;
             int thread_id;
             double pe;
             vector <coordinates> rand_xyz;
 
             #pragma omp for schedule(static) reduction(+:V_avg,V_exp_pe_avg)
-            for (int frame_i = 0; frame_i < n; frame_i++)
+            for (int frame_i = 0; frame_i < frames_read; frame_i++)
             {
 
+                // frame_i is in relation to the current set of frames read in
+                // so i is where we are in the total count of frames
                 int i = frame_i + frame_total;
+
+                // Gets the current box and saves it 8 times in memory for use
+                // with SIMD instructions
                 box = trj.GetCubicBoxM256(frame_i);
+
                 gen_rand_box_points(rand_xyz, box, rand_n);
                 V[i] = volume(box);
 
@@ -310,29 +328,83 @@ int main(int argc, char* argv[])
                 }
 
                 V_exp_pe[i] *= V[i] * rand_ni;
+
+                // These averages are for this current thread, but will be
+                // updated outside of the parallel region using reduction
                 V_avg += V[i];
                 V_exp_pe_avg += V_exp_pe[i];
 
                 if (frame_i % frame_freq == 0)
                 {
                     thread_id = omp_get_thread_num();
-                    printf("Thread: %-1d ", thread_id); 
-                    printf("Frame: %-8d ", i);
-                    printf("μ = %-12.6f ", -log(V_exp_pe[i]/V[i]) * betai);
-                    printf("Chunk <μ> = %-12.6f\n", -log(V_exp_pe_avg/V_avg) * betai);
+                    cout << "Thread: " << setw(3) << thread_id;
+                    cout << " Frame: " << setw(6) << i;
+                    cout << " μ = " << setw(12) << -log(V_exp_pe[i]/V[i]) * betai;
+                    cout <<  "Thread <μ> = " << setw(12) << -log(V_exp_pe_avg/V_avg) * betai;
+                    cout << endl;
                 }
 
             }
         }
-        frame_total += n;
-        printf("Total <μ> = %-12.6f\n", -log(V_exp_pe_avg/V_avg) * betai);
+
+        frame_total += frames_read;
+        cout << "Total <μ> = " << -log(V_exp_pe_avg/V_avg) * betai << endl;
     }
 
     /***** END MAIN ANALYSIS *****/
 
+    double chem_pot_uncertainty = do_uncertainty(boot_n, block_n, frame_total, betai, V, V_exp_pe);
+    double chem_pot = -log(V_exp_pe_avg/V_avg) * betai;
 
-    /***** BEGIN ERROR ANALYSIS *****/
+    cout << "---------------------------------------------------------" << endl;
+    cout << "    μ (kJ / mol) = " << chem_pot << " ± " << chem_pot_uncertainty << endl;
+    cout << "---------------------------------------------------------" << endl;
 
+    end = chrono::system_clock::now(); 
+    chrono::duration<double> elapsed_seconds = end-start;
+    time_t end_time = chrono::system_clock::to_time_t(end);
+
+    ofstream ofs(outfile.c_str());
+    ofs << scientific << setprecision(6) << left;
+    ofs << "-----------------------------------------------------------------------" << endl;
+    ofs << "         Test particle insertion program -- Wes Barnett" << endl;
+    ofs << "-----------------------------------------------------------------------" << endl;
+    ofs << setw(40) << "Started computation at:" << setw(20) << ctime(&start_time);
+    ofs << setw(40) << "Finished computation at:" << setw(20) << ctime(&end_time);
+    ofs << setw(40) << "Number of OMP threads:" << setw(20) << nthreads << endl;
+    ofs << setw(40) << "Configuration file:" << setw(20) << argv[1] << endl;
+    ofs << setw(40) << "Output file:" << setw(20) << outfile << endl;
+    ofs << setw(40) << "Compressed trajectory file:" << setw(20) << xtcfile << endl;
+    ofs << setw(40) << "Index file:" << setw(20) << ndxfile << endl;
+    ofs << setw(40) << "Insertions of particle per frame:" << setw(20) << rand_n  << endl;
+    ofs << setw(40) << "Blocks used in uncertainty analysis:" << setw(20) << block_n << endl;
+    ofs << setw(40) << "Bootstrapped iterations in uncertainty analysis:" << setw(20) << boot_n << endl;
+    ofs << setw(40) << "Well depth factor:" << setw(20) << epsfact << endl;
+    ofs << setw(40) << "Cutoff distance (nm):" << setw(20) << rcut << endl;
+    ofs << setw(40) << "System temperature (K):" << setw(20) << T << endl;
+    ofs << setw(40) << "Test particle sigma (nm):" << setw(20) << testtype_sigma << endl;
+    ofs << setw(40) << "Test particle epsilon (kJ/mol):" << setw(20) << testtype_epsilon << endl;
+    ofs << setw(40) << "Number of atom types:" << setw(20) << atomtypes << endl;
+    ofs << setw(20) << "INDEX NAME" << setw(20) << "SIGMA (nm)" << setw(20) << "EPSILON (kJ/mol)" << setw(20) << "C6" << setw(20) << "C12" << endl;
+    for (int i = 0; i < atomtypes; i++)
+    {
+        ofs << setw(20) << atomtype_name[i] << setw(20) << atomtype_sigma[i] << setw(20) << atomtype_epsilon[i] << setw(20) << at[i].GetC6() << setw(20) << at[i].GetC12() << endl;
+    }
+    ofs << "-----------------------------------------------------------------------" << endl;
+    ofs << "     FINAL RESULT - Excess chemical potential of test particle" << endl;
+    ofs << "-----------------------------------------------------------------------" << endl;
+    ofs << fixed;
+    ofs << "μ (kJ / mol) = " << chem_pot << " ± " << chem_pot_uncertainty << endl;
+    ofs.close();
+
+    return 0;
+
+}
+
+double do_uncertainty(int boot_n, int block_n, int frame_total, double betai, vector <double> &V, vector <double> V_exp_pe)
+{
+    random_device rd;
+    mt19937 gen(rd());
     vector <double> chem_pot_boot(boot_n);
     double chem_pot_boot_avg = 0.0;
 	uniform_int_distribution<int> dist(0,block_n-1);
@@ -381,52 +453,6 @@ int main(int argc, char* argv[])
         chem_pot_boot_var += pow(chem_pot_boot_avg - chem_pot_boot[boot_i], 2);
     }
     chem_pot_boot_var /= (boot_n-1);
-    double chem_pot = -log(V_exp_pe_avg/V_avg) * betai;
 
-    /***** END ERROR ANALYSIS *****/
-
-
-    cout << "---------------------------------------------------------" << endl;
-    cout << "    μ (kJ / mol) = " << chem_pot << " ± " << sqrt(chem_pot_boot_var) << endl;
-    cout << "---------------------------------------------------------" << endl;
-
-    end = chrono::system_clock::now(); 
-    chrono::duration<double> elapsed_seconds = end-start;
-    time_t end_time = chrono::system_clock::to_time_t(end);
-
-    ofstream ofs(outfile.c_str());
-    ofs << scientific << setprecision(6) << left;
-    ofs << "-----------------------------------------------------------------------" << endl;
-    ofs << "         Test particle insertion program -- Wes Barnett" << endl;
-    ofs << "-----------------------------------------------------------------------" << endl;
-    ofs << setw(40) << "Started computation at:" << setw(20) << ctime(&start_time);
-    ofs << setw(40) << "Finished computation at:" << setw(20) << ctime(&end_time);
-    ofs << setw(40) << "Number of OMP threads:" << setw(20) << nthreads << endl;
-    ofs << setw(40) << "Configuration file:" << setw(20) << argv[1] << endl;
-    ofs << setw(40) << "Output file:" << setw(20) << outfile << endl;
-    ofs << setw(40) << "Compressed trajectory file:" << setw(20) << xtcfile << endl;
-    ofs << setw(40) << "Index file:" << setw(20) << ndxfile << endl;
-    ofs << setw(40) << "Insertions of particle per frame:" << setw(20) << rand_n  << endl;
-    ofs << setw(40) << "Blocks used in uncertainty analysis:" << setw(20) << block_n << endl;
-    ofs << setw(40) << "Bootstrapped iterations in uncertainty analysis:" << setw(20) << boot_n << endl;
-    ofs << setw(40) << "Well depth factor:" << setw(20) << epsfact << endl;
-    ofs << setw(40) << "Cutoff distance (nm):" << setw(20) << rcut << endl;
-    ofs << setw(40) << "System temperature (K):" << setw(20) << T << endl;
-    ofs << setw(40) << "Test particle sigma (nm):" << setw(20) << testtype_sigma << endl;
-    ofs << setw(40) << "Test particle epsilon (kJ/mol):" << setw(20) << testtype_epsilon << endl;
-    ofs << setw(40) << "Number of atom types:" << setw(20) << atomtypes << endl;
-    ofs << setw(20) << "INDEX NAME" << setw(20) << "SIGMA (nm)" << setw(20) << "EPSILON (kJ/mol)" << setw(20) << "C6" << setw(20) << "C12" << endl;
-    for (int i = 0; i < atomtypes; i++)
-    {
-        ofs << setw(20) << atomtype_name[i] << setw(20) << atomtype_sigma[i] << setw(20) << atomtype_epsilon[i] << setw(20) << at[i].GetC6() << setw(20) << at[i].GetC12() << endl;
-    }
-    ofs << "-----------------------------------------------------------------------" << endl;
-    ofs << "     FINAL RESULT - Excess chemical potential of test particle" << endl;
-    ofs << "-----------------------------------------------------------------------" << endl;
-    ofs << fixed;
-    ofs << "μ (kJ / mol) = " << chem_pot << " ± " << sqrt(chem_pot_boot_var) << endl;
-    ofs.close();
-
-    return 0;
-
+    return sqrt(chem_pot_boot_var);
 }
