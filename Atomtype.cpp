@@ -15,15 +15,21 @@ Atomtype::Atomtype(const Trajectory &trj, string name, float sig1, float eps1, f
     float ri6 = 1.0/(pow(rc2,3));
     n = trj.GetNAtoms(this->name);
     tail_factor = 2.0/3.0 * M_PI * ri6*(1.0/3.0*c12*ri6 - c6);
+/*
+ * TODO
     rcut2_8 = _mm256_set1_ps(rcut2);
     c12_8 = _mm256_set1_ps(c12);
     c6_8 = _mm256_set1_ps(c6);
+*/
 }
 
 double Atomtype::CalcPE(int frame_i, const Trajectory &trj, const coordinates &rand_xyz, const cubicbox_m256 &box, double vol) const
 {
     float pe = 0.0;
     int atom_i = 0;
+    __m256 rcut2_8 = _mm256_set1_ps(rcut2);
+    __m256 c12_8 = _mm256_set1_ps(c12);
+    __m256 c6_8 = _mm256_set1_ps(c6);
 
     /* BEGIN SIMD SECTION */
     // This performs the exact same calculation after the SIMD section
@@ -41,7 +47,7 @@ double Atomtype::CalcPE(int frame_i, const Trajectory &trj, const coordinates &r
         mask = _mm256_cmp_ps(r2_8, rcut2_8, _CMP_LT_OS);
         r6 = _mm256_and_ps(mask, _mm256_mul_ps(_mm256_mul_ps(r2_8, r2_8), r2_8));
         ri6 = _mm256_and_ps(mask, _mm256_rcp_ps(r6));
-        pe_tmp = _mm256_and_ps(mask, _mm256_mul_ps(ri6, _mm256_sub_ps(_mm256_mul_ps(this->c12_8, ri6), this->c6_8)));
+        pe_tmp = _mm256_and_ps(mask, _mm256_mul_ps(ri6, _mm256_sub_ps(_mm256_mul_ps(c12_8, ri6), c6_8)));
         pe_sum = _mm256_add_ps(pe_tmp, pe_sum);
     }
     _mm256_store_ps(result, pe_sum);

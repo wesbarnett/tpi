@@ -18,9 +18,11 @@ class Atomtype {
         double tail_factor;
         int n;
         string name;
+/* TODO
         __m256 rcut2_8;
         __m256 c12_8;
         __m256 c6_8;
+*/
 
     public:
 
