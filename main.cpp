@@ -60,7 +60,6 @@ int main(int argc, char* argv[])
     for (int i = 0; i < ini.atomtypes; i++)
     {
         at[i] = (Atomtype(trj, ini.atomtype_name[i], ini.testtype_sigma, ini.testtype_epsilon, ini.atomtype_sigma[i], ini.atomtype_epsilon[i], ini.rcut2, ini.epsfact));
-cout << "test" <<endl;
     }
 
     vector <double> V_exp_pe;

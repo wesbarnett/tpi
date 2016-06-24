@@ -25,8 +25,8 @@ class Atomtype {
     public:
 
         Atomtype();
-        Atomtype(Trajectory trj, string name, float sig1, float eps1, float sig2, float eps2, float rc2, float epsfact);
-        double CalcPE(int frame_i, Trajectory &trj, coordinates &rand_xyz, cubicbox_m256 &box, double vol) const;
+        Atomtype(const Trajectory &trj, string name, float sig1, float eps1, float sig2, float eps2, float rc2, float epsfact);
+        double CalcPE(int frame_i, const Trajectory &trj, const coordinates &rand_xyz, const cubicbox_m256 &box, double vol) const;
         double GetC6() const;
         double GetC12() const;
 
