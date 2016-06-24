@@ -26,104 +26,13 @@
 
 #include "omp.h"
 
+#include "Atomtype.h"
+
 using namespace std;
 
 const double R = 8.3144598e-3; // kJ/(mol*K) gas constant
 double do_uncertainty(int boot_n, int block_n, int frame_total, double betai, vector <double> &V, vector <double> V_exp_pe);
-
-class Atomtype {
-
-    private:
-
-        double c6;
-        double c12;
-        double rcut2;
-        double tail_factor;
-        int n;
-        string name;
-        __m256 rcut2_8;
-        __m256 c12_8;
-        __m256 c6_8;
-
-    public:
-
-
-        Atomtype() { }
-    
-        Atomtype(Trajectory &trj, string name, double sig1, double eps1, double sig2, double eps2, double rc2, double epsfact)
-        {
-            double eps = epsfact * sqrt(eps1 * eps2);
-            double sig = 0.5 * (sig1 + sig2);
-            c6 = 4.0 * eps * pow(sig, 6);
-            c12 = 4.0 * eps * pow(sig, 12);
-            this->name = name;
-            rcut2 = rc2;
-            double ri6 = 1.0/(pow(rc2,3));
-            n = trj.GetNAtoms(this->name);
-            tail_factor = 2.0/3.0 * M_PI * ri6*(1.0/3.0*c12*ri6 - c6);
-            rcut2_8 = _mm256_set1_ps(rcut2);
-            c12_8 = _mm256_set1_ps(c12);
-            c6_8 = _mm256_set1_ps(c6);
-        }
-
-        double CalcPE(int frame_i, Trajectory &trj, coordinates &rand_xyz, cubicbox_m256 &box, double vol)
-        {
-            float pe = 0.0;
-            int atom_i = 0;
-
-            /* BEGIN SIMD SECTION */
-            // This performs the exact same calculation after the SIMD section
-            // but doing it on 8 atoms at a time using SIMD instructions.
-
-            coordinates8 rand_xyz8(rand_xyz), atom_xyz;
-            __m256 r2_8, mask, r6, ri6, pe_tmp;
-            __m256 pe_sum = _mm256_setzero_ps();
-            float result[n] __attribute__((aligned (16)));
-
-            for (; atom_i < this->n-8; atom_i+=8)
-            {
-                atom_xyz = trj.GetXYZ8(frame_i, this->name, atom_i);
-                r2_8 = distance2(atom_xyz, rand_xyz8, box);
-                mask = _mm256_cmp_ps(r2_8, rcut2_8, _CMP_LT_OS);
-                r6 = _mm256_and_ps(mask, _mm256_mul_ps(_mm256_mul_ps(r2_8, r2_8), r2_8));
-                ri6 = _mm256_and_ps(mask, _mm256_rcp_ps(r6));
-                pe_tmp = _mm256_and_ps(mask, _mm256_mul_ps(ri6, _mm256_sub_ps(_mm256_mul_ps(c12_8, ri6), c6_8)));
-                pe_sum = _mm256_add_ps(pe_tmp, pe_sum);
-            }
-            _mm256_store_ps(result, pe_sum);
-            for (int i = 0; i < 8; i++)
-            {
-                pe += result[i];
-            }
-
-            /* END SIMD SECTION */
-
-            for (; atom_i < this->n; atom_i++)
-            {
-                coordinates atom_xyz = trj.GetXYZ(frame_i, this->name, atom_i);
-                float r2 = distance2(atom_xyz, rand_xyz, cubicbox(box));
-                if (r2 < this->rcut2)
-                {
-                    float ri6 = 1.0/(pow(r2,3));
-                    pe += ri6*(this->c12*ri6 - this->c6);
-                }
-            }
-
-            pe += this->n/vol * this->tail_factor;;
-
-            return pe;
-        }
-
-        double GetC6() const
-        {
-            return c6;
-        }
-
-        double GetC12() const
-        {
-            return c12;
-        }
-};
+double do_chempot(Trajectory &trj, vector <Atomtype> &at, vector <double> &V_exp_pe, vector <double> &V, int &frame_total, int frame_freq, int rand_n, double rand_ni, int chunk, double beta, double betai);
 
 int main(int argc, char* argv[])
 {
@@ -264,97 +173,12 @@ int main(int argc, char* argv[])
 
     /***** END CONFIGURATION FILE PARSING *****/
 
-
-    /***** BEGIN MAIN ANALYSIS *****/
-
-    random_device rd;
-    mt19937 gen(rd());
-    double V_avg = 0.0;
-    double V_exp_pe_avg = 0.0;
-
     vector <double> V_exp_pe;
     vector <double> V;
-
     int frame_total = 0;
     const int chunk = nthreads*chunk_size;
-    int frames_read = -1;
-
-    cout << left;
-
-    // Read in frames chunk by chunk (saves on RAM).
-    while (frames_read != 0)
-    {
-        cout << "Reading in " << chunk << " frames..." << endl;
-        frames_read = trj.read_next(chunk);
-        cout << "Finished reading in " << frames_read << " frames." << endl;
-
-        // Expand for additional frames read in
-        V_exp_pe.resize(V_exp_pe.size()+frames_read, 0.0);
-        V.resize(V_exp_pe.size()+frames_read);
-
-        // Now split up the frames that we read in to each processor
-        #pragma omp parallel
-        {
-
-            cubicbox_m256 box;
-            int thread_id;
-            double pe;
-            vector <coordinates> rand_xyz;
-
-            #pragma omp for schedule(static) reduction(+:V_avg,V_exp_pe_avg)
-            for (int frame_i = 0; frame_i < frames_read; frame_i++)
-            {
-
-                // frame_i is in relation to the current set of frames read in
-                // so i is where we are in the total count of frames
-                int i = frame_i + frame_total;
-
-                // Gets the current box and saves it 8 times in memory for use
-                // with SIMD instructions
-                box = trj.GetCubicBoxM256(frame_i);
-
-                gen_rand_box_points(rand_xyz, box, rand_n);
-                V[i] = volume(box);
-
-                for (int rand_i = 0; rand_i < rand_n; rand_i++)
-                {
-                    pe = 0.0;
-                    for (int atomtype_i = 0; atomtype_i < atomtypes; atomtype_i++)
-                    {
-                        pe += at[atomtype_i].CalcPE(frame_i, trj, rand_xyz[rand_i], box, V[i]);
-                    }
-
-                    V_exp_pe[i] += exp(-pe * beta);
-                }
-
-                V_exp_pe[i] *= V[i] * rand_ni;
-
-                // These averages are for this current thread, but will be
-                // updated outside of the parallel region using reduction
-                V_avg += V[i];
-                V_exp_pe_avg += V_exp_pe[i];
-
-                if (frame_i % frame_freq == 0)
-                {
-                    thread_id = omp_get_thread_num();
-                    cout << "Thread: " << setw(3) << thread_id;
-                    cout << " Frame: " << setw(6) << i;
-                    cout << " μ = " << setw(12) << -log(V_exp_pe[i]/V[i]) * betai;
-                    cout <<  "Thread <μ> = " << setw(12) << -log(V_exp_pe_avg/V_avg) * betai;
-                    cout << endl;
-                }
-
-            }
-        }
-
-        frame_total += frames_read;
-        cout << "Total <μ> = " << -log(V_exp_pe_avg/V_avg) * betai << endl;
-    }
-
-    /***** END MAIN ANALYSIS *****/
-
+    double chem_pot = do_chempot(trj, at, V_exp_pe, V, frame_total, frame_freq, rand_n, rand_ni, chunk, beta, betai);
     double chem_pot_uncertainty = do_uncertainty(boot_n, block_n, frame_total, betai, V, V_exp_pe);
-    double chem_pot = -log(V_exp_pe_avg/V_avg) * betai;
 
     cout << "---------------------------------------------------------" << endl;
     cout << "    μ (kJ / mol) = " << chem_pot << " ± " << chem_pot_uncertainty << endl;
@@ -399,6 +223,91 @@ int main(int argc, char* argv[])
 
     return 0;
 
+}
+
+double do_chempot(Trajectory &trj, vector <Atomtype> &at, vector <double> &V_exp_pe, vector <double> &V, int &frame_total, int frame_freq, int rand_n, double rand_ni, int chunk, double beta, double betai)
+{
+
+    random_device rd;
+    mt19937 gen(rd());
+    double V_avg = 0.0;
+    double V_exp_pe_avg = 0.0;
+
+    int frames_read = -1;
+
+    cout << left;
+
+    // Read in frames chunk by chunk (saves on RAM).
+    while (frames_read != 0)
+    {
+        cout << "Reading in " << chunk << " frames..." << endl;
+        frames_read = trj.read_next(chunk);
+        cout << "Finished reading in " << frames_read << " frames." << endl;
+
+        // Expand for additional frames read in
+        V_exp_pe.resize(V_exp_pe.size()+frames_read, 0.0);
+        V.resize(V_exp_pe.size()+frames_read);
+
+        // Now split up the frames that we read in to each processor
+        #pragma omp parallel
+        {
+
+            cubicbox_m256 box;
+            int thread_id;
+            double pe;
+            vector <coordinates> rand_xyz;
+
+            #pragma omp for schedule(static) reduction(+:V_avg,V_exp_pe_avg)
+            for (int frame_i = 0; frame_i < frames_read; frame_i++)
+            {
+
+                // frame_i is in relation to the current set of frames read in
+                // so i is where we are in the total count of frames
+                int i = frame_i + frame_total;
+
+                // Gets the current box and saves it 8 times in memory for use
+                // with SIMD instructions
+                box = trj.GetCubicBoxM256(frame_i);
+
+                gen_rand_box_points(rand_xyz, box, rand_n);
+                V[i] = volume(box);
+
+                for (int rand_i = 0; rand_i < rand_n; rand_i++)
+                {
+                    pe = 0.0;
+                    for (unsigned int atomtype_i = 0; atomtype_i < at.size(); atomtype_i++)
+                    {
+                        pe += at[atomtype_i].CalcPE(frame_i, trj, rand_xyz[rand_i], box, V[i]);
+                    }
+
+                    V_exp_pe[i] += exp(-pe * beta);
+                }
+
+                V_exp_pe[i] *= V[i] * rand_ni;
+
+                // These averages are for this current thread, but will be
+                // updated outside of the parallel region using reduction
+                V_avg += V[i];
+                V_exp_pe_avg += V_exp_pe[i];
+
+                if (frame_i % frame_freq == 0)
+                {
+                    thread_id = omp_get_thread_num();
+                    cout << "Thread: " << setw(3) << thread_id;
+                    cout << " Frame: " << setw(6) << i;
+                    cout << " μ = " << setw(12) << -log(V_exp_pe[i]/V[i]) * betai;
+                    cout <<  "Thread <μ> = " << setw(12) << -log(V_exp_pe_avg/V_avg) * betai;
+                    cout << endl;
+                }
+
+            }
+        }
+
+        frame_total += frames_read;
+        cout << "Total <μ> = " << -log(V_exp_pe_avg/V_avg) * betai << endl;
+    }
+
+    return -log(V_exp_pe_avg/V_avg) * betai;
 }
 
 double do_uncertainty(int boot_n, int block_n, int frame_total, double betai, vector <double> &V, vector <double> V_exp_pe)
