@@ -65,8 +65,7 @@ int main(int argc, char* argv[])
     vector <double> V_exp_pe;
     vector <double> V;
     int frame_total = 0;
-    const int chunk = nthreads*ini.chunk_size;
-    double chem_pot = do_chempot(trj, at, V_exp_pe, V, frame_total, ini.frame_freq, ini.rand_n, ini.rand_ni, chunk, ini.beta, ini.betai);
+    double chem_pot = do_chempot(trj, at, V_exp_pe, V, frame_total, ini.frame_freq, ini.rand_n, ini.rand_ni, nthreads*ini.chunk_size, ini.beta, ini.betai);
     double chem_pot_uncertainty = do_uncertainty(ini.boot_n, ini.block_n, frame_total, ini.betai, V, V_exp_pe);
 
     cout << "---------------------------------------------------------" << endl;
