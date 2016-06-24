@@ -30,8 +30,8 @@
 using namespace std;
 
 double do_uncertainty(int boot_n, int block_n, int frame_total, double betai, vector <double> &V, vector <double> V_exp_pe);
-double do_chempot(Trajectory &trj, vector <Atomtype> &at, vector <double> &V_exp_pe, vector <double> &V, int &frame_total, int frame_freq, int rand_n, double rand_ni, int chunk, double beta, double betai);
-void do_output(Ini &ini, vector <Atomtype> &at, double chem_pot, double chem_pot_uncertainty, time_t start_time, time_t end_time, int nthreds);
+double do_chempot(Trajectory &trj, Atomtype at[], vector <double> &V_exp_pe, vector <double> &V, int &frame_total, int frame_freq, int rand_n, double rand_ni, int chunk, double beta, double betai, int atomtypes);
+void do_output(Ini &ini, Atomtype at[], double chem_pot, double chem_pot_uncertainty, time_t start_time, time_t end_time, int nthreds);
 
 int main(int argc, char* argv[])
 {
@@ -55,7 +55,7 @@ int main(int argc, char* argv[])
     nthreads = omp_get_num_threads();
 
     Trajectory trj(ini.xtcfile, ini.ndxfile);
-    vector <Atomtype> at(ini.atomtypes);
+    Atomtype at[ini.atomtypes];
 
     for (int i = 0; i < ini.atomtypes; i++)
     {
@@ -65,7 +65,7 @@ int main(int argc, char* argv[])
     vector <double> V_exp_pe;
     vector <double> V;
     int frame_total = 0;
-    double chem_pot = do_chempot(trj, at, V_exp_pe, V, frame_total, ini.frame_freq, ini.rand_n, ini.rand_ni, nthreads*ini.chunk_size, ini.beta, ini.betai);
+    double chem_pot = do_chempot(trj, at, V_exp_pe, V, frame_total, ini.frame_freq, ini.rand_n, ini.rand_ni, nthreads*ini.chunk_size, ini.beta, ini.betai, ini.atomtypes);
     double chem_pot_uncertainty = do_uncertainty(ini.boot_n, ini.block_n, frame_total, ini.betai, V, V_exp_pe);
 
     cout << "---------------------------------------------------------" << endl;
@@ -82,7 +82,7 @@ int main(int argc, char* argv[])
 
 }
 
-double do_chempot(Trajectory &trj, vector <Atomtype> &at, vector <double> &V_exp_pe, vector <double> &V, int &frame_total, int frame_freq, int rand_n, double rand_ni, int chunk, double beta, double betai)
+double do_chempot(Trajectory &trj, Atomtype at[], vector <double> &V_exp_pe, vector <double> &V, int &frame_total, int frame_freq, int rand_n, double rand_ni, int chunk, double beta, double betai, int atomtypes)
 {
 
     random_device rd;
@@ -132,7 +132,7 @@ double do_chempot(Trajectory &trj, vector <Atomtype> &at, vector <double> &V_exp
                 for (int rand_i = 0; rand_i < rand_n; rand_i++)
                 {
                     pe = 0.0;
-                    for (unsigned int atomtype_i = 0; atomtype_i < at.size(); atomtype_i++)
+                    for (int atomtype_i = 0; atomtype_i < atomtypes; atomtype_i++)
                     {
                         pe += at[atomtype_i].CalcPE(frame_i, trj, rand_xyz[rand_i], box, V[i]);
                     }
@@ -223,7 +223,7 @@ double do_uncertainty(int boot_n, int block_n, int frame_total, double betai, ve
     return sqrt(chem_pot_boot_var);
 }
 
-void do_output(Ini &ini, vector <Atomtype> &at, double chem_pot, double chem_pot_uncertainty, time_t start_time, time_t end_time, int nthreads)
+void do_output(Ini &ini, Atomtype at[], double chem_pot, double chem_pot_uncertainty, time_t start_time, time_t end_time, int nthreads)
 {
 
     ofstream ofs(ini.outfile.c_str());
