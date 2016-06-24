@@ -2,48 +2,24 @@
 #include "Atomtype.h"
 
 
-Atomtype::Atomtype() { }
+Atomtype::Atomtype() {  }
 
-Atomtype::Atomtype(Trajectory trj, string name, double sig1, double eps1, double sig2, double eps2, double rc2, double epsfact)
+Atomtype::Atomtype(Trajectory trj, string name, float sig1, float eps1, float sig2, float eps2, float rc2, float epsfact)
 {
-    double eps = epsfact * sqrt(eps1 * eps2);
-    double sig = 0.5 * (sig1 + sig2);
+    float eps = epsfact * sqrt(eps1 * eps2);
+    float sig = 0.5 * (sig1 + sig2);
     c6 = 4.0 * eps * pow(sig, 6);
     c12 = 4.0 * eps * pow(sig, 12);
     this->name = name;
     rcut2 = rc2;
-    double ri6 = 1.0/(pow(rc2,3));
+    float ri6 = 1.0/(pow(rc2,3));
     n = trj.GetNAtoms(this->name);
     tail_factor = 2.0/3.0 * M_PI * ri6*(1.0/3.0*c12*ri6 - c6);
+/*
     rcut2_8 = _mm256_set1_ps(rcut2);
     c12_8 = _mm256_set1_ps(c12);
     c6_8 = _mm256_set1_ps(c6);
-}
-
-Atomtype::Atomtype( const Atomtype& other ) :
-    c6( other.c6 ), 
-    c12( other.c12 ),
-    rcut2( other.rcut2 ),
-    tail_factor( other.tail_factor ),
-    n( other.n ),
-    name( other.name), 
-    rcut2_8( other.rcut2_8 ), 
-    c12_8( other.c12_8 ), 
-    c6_8( other.c6_8)
-  {}
-
-Atomtype& Atomtype::operator=( const Atomtype& other ) 
-{
-    c6 = other.c6;
-    c12 = other.c12;
-    rcut2 = other.rcut2;
-    tail_factor = other.tail_factor;
-    n = other.n;
-    name = other.name;
-    rcut2_8 = other.rcut2_8;
-    c12_8 = other.c12_8;
-    c6_8 = other.c6_8;
-    return *this;
+*/
 }
 
 double Atomtype::CalcPE(int frame_i, Trajectory &trj, coordinates &rand_xyz, cubicbox_m256 &box, double vol) const
@@ -55,6 +31,7 @@ double Atomtype::CalcPE(int frame_i, Trajectory &trj, coordinates &rand_xyz, cub
     // This performs the exact same calculation after the SIMD section
     // but doing it on 8 atoms at a time using SIMD instructions.
 
+/*
     coordinates8 rand_xyz8(rand_xyz), atom_xyz;
     __m256 r2_8, mask, r6, ri6, pe_tmp;
     __m256 pe_sum = _mm256_setzero_ps();
@@ -75,6 +52,7 @@ double Atomtype::CalcPE(int frame_i, Trajectory &trj, coordinates &rand_xyz, cub
     {
         pe += result[i];
     }
+*/
 
     /* END SIMD SECTION */
 

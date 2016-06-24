@@ -1,4 +1,5 @@
 #include "Ini.h"
+
 Ini::Ini(char file[])
 {
     boost::property_tree::ptree pt;
@@ -69,6 +70,7 @@ Ini::Ini(char file[])
     atomtype_name.resize(atomtypes);
     atomtype_sigma.resize(atomtypes);
     atomtype_epsilon.resize(atomtypes);
+
     for (int i = 0; i < atomtypes; i++)
     {
         string atomtype_str = pt.get<std::string>("atomtype"+to_string(i+1));

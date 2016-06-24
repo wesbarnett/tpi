@@ -4,18 +4,17 @@
 
 #include <string>
 #include <vector>
-#include <smmintrin.h>
-#include <xmmintrin.h>
 #include "gmxcpp/Trajectory.h"
+#include <immintrin.h>
 using namespace std;
 
 class Atomtype {
 
     private:
 
-        double c6;
-        double c12;
-        double rcut2;
+        float c6;
+        float c12;
+        float rcut2;
         double tail_factor;
         int n;
         string name;
@@ -26,9 +25,7 @@ class Atomtype {
     public:
 
         Atomtype();
-        Atomtype( const Atomtype& other );
-        Atomtype& operator=( const Atomtype& other );
-        Atomtype(Trajectory trj, string name, double sig1, double eps1, double sig2, double eps2, double rc2, double epsfact);
+        Atomtype(Trajectory trj, string name, float sig1, float eps1, float sig2, float eps2, float rc2, float epsfact);
         double CalcPE(int frame_i, Trajectory &trj, coordinates &rand_xyz, cubicbox_m256 &box, double vol) const;
         double GetC6() const;
         double GetC12() const;

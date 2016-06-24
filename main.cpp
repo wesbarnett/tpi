@@ -25,6 +25,7 @@
 
 #include "Atomtype.h"
 #include "Ini.h"
+#include "immintrin.h"
 
 using namespace std;
 
@@ -52,14 +53,14 @@ int main(int argc, char* argv[])
     #pragma omp parallel
     #pragma omp master
     nthreads = omp_get_num_threads();
-    cout << "Using " << nthreads << " OpenMP threads." << endl;
 
     Trajectory trj(ini.xtcfile, ini.ndxfile);
-    vector <Atomtype> at;
+    vector <Atomtype> at(ini.atomtypes);
 
     for (int i = 0; i < ini.atomtypes; i++)
     {
-        at.push_back(Atomtype(trj, ini.atomtype_name[i], ini.testtype_sigma, ini.testtype_epsilon, ini.atomtype_sigma[i], ini.atomtype_epsilon[i], ini.rcut2, ini.epsfact));
+        at[i] = (Atomtype(trj, ini.atomtype_name[i], ini.testtype_sigma, ini.testtype_epsilon, ini.atomtype_sigma[i], ini.atomtype_epsilon[i], ini.rcut2, ini.epsfact));
+cout << "test" <<endl;
     }
 
     vector <double> V_exp_pe;
