@@ -4,7 +4,10 @@
 
 #include <string>
 #include <vector>
+#include <smmintrin.h>
+#include <xmmintrin.h>
 #include "gmxcpp/Trajectory.h"
+using namespace std;
 
 class Atomtype {
 
@@ -23,7 +26,9 @@ class Atomtype {
     public:
 
         Atomtype();
-        Atomtype(Trajectory &trj, string name, double sig1, double eps1, double sig2, double eps2, double rc2, double epsfact);
+        Atomtype( const Atomtype& other );
+        Atomtype& operator=( const Atomtype& other );
+        Atomtype(Trajectory trj, string name, double sig1, double eps1, double sig2, double eps2, double rc2, double epsfact);
         double CalcPE(int frame_i, Trajectory &trj, coordinates &rand_xyz, cubicbox_m256 &box, double vol) const;
         double GetC6() const;
         double GetC12() const;

@@ -11,9 +11,6 @@
  *  - Isothermal-isobaric ensemble or NVT
  */
 
-#include <boost/property_tree/ptree.hpp>
-#include <boost/property_tree/ini_parser.hpp>
-
 #include <chrono>
 #include <ctime>
 #include <iomanip>
@@ -27,21 +24,16 @@
 #include "omp.h"
 
 #include "Atomtype.h"
+#include "Ini.h"
 
 using namespace std;
 
-const double R = 8.3144598e-3; // kJ/(mol*K) gas constant
 double do_uncertainty(int boot_n, int block_n, int frame_total, double betai, vector <double> &V, vector <double> V_exp_pe);
 double do_chempot(Trajectory &trj, vector <Atomtype> &at, vector <double> &V_exp_pe, vector <double> &V, int &frame_total, int frame_freq, int rand_n, double rand_ni, int chunk, double beta, double betai);
+void do_output(Ini &ini, vector <Atomtype> &at, double chem_pot, double chem_pot_uncertainty, time_t start_time, time_t end_time, int nthreds);
 
 int main(int argc, char* argv[])
 {
-
-    chrono::time_point<std::chrono::system_clock> start, end;
-    start = std::chrono::system_clock::now(); 
-
-
-    /***** BEGIN CONFIGURATION FILE PARSING *****/
 
     if (argc != 2)
     {
@@ -49,136 +41,33 @@ int main(int argc, char* argv[])
         return -1;
     }
 
+    chrono::time_point<std::chrono::system_clock> start, end;
+    start = std::chrono::system_clock::now(); 
+    time_t start_time = chrono::system_clock::to_time_t(start);
+
     cout << "Using '" << argv[1] << "' for configuration file..." << endl;
+    Ini ini(argv[1]);
 
     int nthreads;
-
     #pragma omp parallel
     #pragma omp master
     nthreads = omp_get_num_threads();
-
     cout << "Using " << nthreads << " OpenMP threads." << endl;
 
-    time_t start_time = chrono::system_clock::to_time_t(start);
-
-    boost::property_tree::ptree pt;
-    boost::property_tree::ini_parser::read_ini(argv[1], pt);
-    char *endptr;
-
-    const string outfile = pt.get<std::string>("outfile","tpi.dat");
-    const string xtcfile = pt.get<std::string>("xtcfile","prd.xtc");
-    const string ndxfile = pt.get<std::string>("ndxfile","index.ndx");
-    const int frame_freq = strtol(pt.get<std::string>("frame_freq","1000").c_str(), &endptr, 10);
-    if (*endptr != ' ' && *endptr != 0)
-    {
-        cout << "ERROR: 'frame_freq' must be an integer." << endl;
-        return -1;
-    }
-    const int chunk_size = strtol(pt.get<std::string>("chunk_size","1000").c_str(), &endptr, 10);
-    if (*endptr != ' ' && *endptr != 0)
-    {
-        cout << "ERROR: 'chunk_size' must be an integer." << endl;
-        return -1;
-    }
-    const int rand_n = strtol(pt.get<std::string>("rand_n","1000").c_str(), &endptr, 10);
-    const float rand_ni = 1.0/rand_n;
-    if (*endptr != ' ' && *endptr != 0)
-    {
-        cout << "ERROR: 'rand_n' must be an integer." << endl;
-        return -1;
-    }
-    const int block_n = strtol(pt.get<std::string>("block_n","5").c_str(), &endptr, 10);
-    if (*endptr != ' ' && *endptr != 0)
-    {
-        cout << "ERROR: 'block_n' must be an integer." << endl;
-        return -1;
-    }
-    const int boot_n = strtol(pt.get<std::string>("boot_n","200").c_str(), &endptr, 10);
-    if (*endptr != ' ' && *endptr != 0)
-    {
-        cout << "ERROR: 'boot_n' must be an integer." << endl;
-        return -1;
-    }
-    const double epsfact = strtod(pt.get<std::string>("epsfact","1.0").c_str(), &endptr);
-    if (*endptr != ' ' && *endptr != 0)
-    {
-        cout << "ERROR: 'epsfact' must be a double." << endl;
-        return -1;
-    }
-    const double rcut = strtod(pt.get<std::string>("rcut","1.0").c_str(), &endptr);
-    if (*endptr != ' ' && *endptr != 0)
-    {
-        cout << "ERROR: 'rcut' must be a double." << endl;
-        return -1;
-    }
-    const double rcut2 = rcut*rcut;
-    const double T = strtod(pt.get<std::string>("T","298.15").c_str(), &endptr); // Kelvin
-    if (*endptr != ' ' && *endptr != 0)
-    {
-        cout << "ERROR: 'T' must be a double." << endl;
-        return -1;
-    }
-    const double beta = 1.0/(R * T); // kJ/mol
-    const double betai = (R * T);
-    const int atomtypes = strtol(pt.get<std::string>("atomtypes","1").c_str(), &endptr, 10);
-    if (*endptr != ' ' && *endptr != 0)
-    {
-        cout << "ERROR: 'atomtypes' must be an integer." << endl;
-        return -1;
-    }
-
+    Trajectory trj(ini.xtcfile, ini.ndxfile);
     vector <Atomtype> at;
-    istringstream iss; 
-    vector <string> atomtype_name(atomtypes);
-    vector <double> atomtype_sigma(atomtypes);
-    vector <double> atomtype_epsilon(atomtypes);
-    double testtype_sigma;
-    double testtype_epsilon;
 
-    string testtype_str = pt.get<std::string>("testtype");
-    iss.clear();
-    iss.str(testtype_str);
-    iss >> testtype_sigma;
-    iss >> testtype_epsilon;
-
-    Trajectory trj(xtcfile, ndxfile);
-
-    for (int i = 0; i < atomtypes; i++)
+    for (int i = 0; i < ini.atomtypes; i++)
     {
-        string atomtype_str = pt.get<std::string>("atomtype"+to_string(i+1));
-        iss.clear();
-        iss.str(atomtype_str);
-        iss >> atomtype_name[i];
-        iss >> atomtype_sigma[i];
-        iss >> atomtype_epsilon[i];
-        at.push_back(Atomtype(trj, atomtype_name[i], testtype_sigma, testtype_epsilon, atomtype_sigma[i], atomtype_epsilon[i], rcut2, epsfact));
+        at.push_back(Atomtype(trj, ini.atomtype_name[i], ini.testtype_sigma, ini.testtype_epsilon, ini.atomtype_sigma[i], ini.atomtype_epsilon[i], ini.rcut2, ini.epsfact));
     }
-
-    cout << "outfile = " << outfile << endl;
-    cout << "xtcfile = " << xtcfile << endl;
-    cout << "ndxfile = " << ndxfile << endl;
-    cout << "frame_freq = " << frame_freq << endl;
-    cout << "chunk_size = " << chunk_size << endl;
-    cout << "rand_n = " << rand_n << endl;
-    cout << "block_n = " << block_n << endl;
-    cout << "boot_n = " << boot_n << endl;
-    cout << "epsfact = " << epsfact << endl;
-    cout << "rcut = " << rcut << endl;
-    cout << "T = " << T << endl;
-    cout << "atomtypes = " << atomtypes << endl;
-    for (int i = 0; i < atomtypes; i++)
-    {
-        cout << atomtype_name[i] << " " << atomtype_sigma[i] << " " << atomtype_epsilon[i] << endl;
-    }
-
-    /***** END CONFIGURATION FILE PARSING *****/
 
     vector <double> V_exp_pe;
     vector <double> V;
     int frame_total = 0;
-    const int chunk = nthreads*chunk_size;
-    double chem_pot = do_chempot(trj, at, V_exp_pe, V, frame_total, frame_freq, rand_n, rand_ni, chunk, beta, betai);
-    double chem_pot_uncertainty = do_uncertainty(boot_n, block_n, frame_total, betai, V, V_exp_pe);
+    const int chunk = nthreads*ini.chunk_size;
+    double chem_pot = do_chempot(trj, at, V_exp_pe, V, frame_total, ini.frame_freq, ini.rand_n, ini.rand_ni, chunk, ini.beta, ini.betai);
+    double chem_pot_uncertainty = do_uncertainty(ini.boot_n, ini.block_n, frame_total, ini.betai, V, V_exp_pe);
 
     cout << "---------------------------------------------------------" << endl;
     cout << "    μ (kJ / mol) = " << chem_pot << " ± " << chem_pot_uncertainty << endl;
@@ -188,38 +77,7 @@ int main(int argc, char* argv[])
     chrono::duration<double> elapsed_seconds = end-start;
     time_t end_time = chrono::system_clock::to_time_t(end);
 
-    ofstream ofs(outfile.c_str());
-    ofs << scientific << setprecision(6) << left;
-    ofs << "-----------------------------------------------------------------------" << endl;
-    ofs << "         Test particle insertion program -- Wes Barnett" << endl;
-    ofs << "-----------------------------------------------------------------------" << endl;
-    ofs << setw(40) << "Started computation at:" << setw(20) << ctime(&start_time);
-    ofs << setw(40) << "Finished computation at:" << setw(20) << ctime(&end_time);
-    ofs << setw(40) << "Number of OMP threads:" << setw(20) << nthreads << endl;
-    ofs << setw(40) << "Configuration file:" << setw(20) << argv[1] << endl;
-    ofs << setw(40) << "Output file:" << setw(20) << outfile << endl;
-    ofs << setw(40) << "Compressed trajectory file:" << setw(20) << xtcfile << endl;
-    ofs << setw(40) << "Index file:" << setw(20) << ndxfile << endl;
-    ofs << setw(40) << "Insertions of particle per frame:" << setw(20) << rand_n  << endl;
-    ofs << setw(40) << "Blocks used in uncertainty analysis:" << setw(20) << block_n << endl;
-    ofs << setw(40) << "Bootstrapped iterations in uncertainty analysis:" << setw(20) << boot_n << endl;
-    ofs << setw(40) << "Well depth factor:" << setw(20) << epsfact << endl;
-    ofs << setw(40) << "Cutoff distance (nm):" << setw(20) << rcut << endl;
-    ofs << setw(40) << "System temperature (K):" << setw(20) << T << endl;
-    ofs << setw(40) << "Test particle sigma (nm):" << setw(20) << testtype_sigma << endl;
-    ofs << setw(40) << "Test particle epsilon (kJ/mol):" << setw(20) << testtype_epsilon << endl;
-    ofs << setw(40) << "Number of atom types:" << setw(20) << atomtypes << endl;
-    ofs << setw(20) << "INDEX NAME" << setw(20) << "SIGMA (nm)" << setw(20) << "EPSILON (kJ/mol)" << setw(20) << "C6" << setw(20) << "C12" << endl;
-    for (int i = 0; i < atomtypes; i++)
-    {
-        ofs << setw(20) << atomtype_name[i] << setw(20) << atomtype_sigma[i] << setw(20) << atomtype_epsilon[i] << setw(20) << at[i].GetC6() << setw(20) << at[i].GetC12() << endl;
-    }
-    ofs << "-----------------------------------------------------------------------" << endl;
-    ofs << "     FINAL RESULT - Excess chemical potential of test particle" << endl;
-    ofs << "-----------------------------------------------------------------------" << endl;
-    ofs << fixed;
-    ofs << "μ (kJ / mol) = " << chem_pot << " ± " << chem_pot_uncertainty << endl;
-    ofs.close();
+    do_output(ini, at, chem_pot, chem_pot_uncertainty, start_time, end_time, nthreads);
 
     return 0;
 
@@ -364,4 +222,42 @@ double do_uncertainty(int boot_n, int block_n, int frame_total, double betai, ve
     chem_pot_boot_var /= (boot_n-1);
 
     return sqrt(chem_pot_boot_var);
+}
+
+void do_output(Ini &ini, vector <Atomtype> &at, double chem_pot, double chem_pot_uncertainty, time_t start_time, time_t end_time, int nthreads)
+{
+
+    ofstream ofs(ini.outfile.c_str());
+    ofs << scientific << setprecision(6) << left;
+    ofs << "-----------------------------------------------------------------------" << endl;
+    ofs << "         Test particle insertion program -- Wes Barnett" << endl;
+    ofs << "-----------------------------------------------------------------------" << endl;
+    ofs << setw(40) << "Started computation at:" << setw(20) << ctime(&start_time);
+    ofs << setw(40) << "Finished computation at:" << setw(20) << ctime(&end_time);
+    ofs << setw(40) << "Number of OMP threads:" << setw(20) << nthreads << endl;
+    ofs << setw(40) << "Output file:" << setw(20) << ini.outfile << endl;
+    ofs << setw(40) << "Compressed trajectory file:" << setw(20) << ini.xtcfile << endl;
+    ofs << setw(40) << "Index file:" << setw(20) << ini.ndxfile << endl;
+    ofs << setw(40) << "Insertions of particle per frame:" << setw(20) << ini.rand_n  << endl;
+    ofs << setw(40) << "Blocks used in uncertainty analysis:" << setw(20) << ini.block_n << endl;
+    ofs << setw(40) << "Bootstrapped iterations in uncertainty analysis:" << setw(20) << ini.boot_n << endl;
+    ofs << setw(40) << "Well depth factor:" << setw(20) << ini.epsfact << endl;
+    ofs << setw(40) << "Cutoff distance (nm):" << setw(20) << ini.rcut << endl;
+    ofs << setw(40) << "System temperature (K):" << setw(20) << ini.T << endl;
+    ofs << setw(40) << "Test particle sigma (nm):" << setw(20) << ini.testtype_sigma << endl;
+    ofs << setw(40) << "Test particle epsilon (kJ/mol):" << setw(20) << ini.testtype_epsilon << endl;
+    ofs << setw(40) << "Number of atom types:" << setw(20) << ini.atomtypes << endl;
+    ofs << setw(20) << "INDEX NAME" << setw(20) << "SIGMA (nm)" << setw(20) << "EPSILON (kJ/mol)" << setw(20) << "C6" << setw(20) << "C12" << endl;
+    for (int i = 0; i < ini.atomtypes; i++)
+    {
+        ofs << setw(20) << ini.atomtype_name[i] << setw(20) << ini.atomtype_sigma[i] << setw(20) << ini.atomtype_epsilon[i] << setw(20) << at[i].GetC6() << setw(20) << at[i].GetC12() << endl;
+    }
+    ofs << "-----------------------------------------------------------------------" << endl;
+    ofs << "     FINAL RESULT - Excess chemical potential of test particle" << endl;
+    ofs << "-----------------------------------------------------------------------" << endl;
+    ofs << fixed;
+    ofs << "μ (kJ / mol) = " << chem_pot << " ± " << chem_pot_uncertainty << endl;
+    ofs.close();
+
+    return;
 }

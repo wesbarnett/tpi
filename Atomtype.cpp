@@ -1,11 +1,10 @@
 
 #include "Atomtype.h"
 
-using namespace std;
 
 Atomtype::Atomtype() { }
 
-Atomtype::Atomtype(Trajectory &trj, string name, double sig1, double eps1, double sig2, double eps2, double rc2, double epsfact)
+Atomtype::Atomtype(Trajectory trj, string name, double sig1, double eps1, double sig2, double eps2, double rc2, double epsfact)
 {
     double eps = epsfact * sqrt(eps1 * eps2);
     double sig = 0.5 * (sig1 + sig2);
@@ -19,6 +18,32 @@ Atomtype::Atomtype(Trajectory &trj, string name, double sig1, double eps1, doubl
     rcut2_8 = _mm256_set1_ps(rcut2);
     c12_8 = _mm256_set1_ps(c12);
     c6_8 = _mm256_set1_ps(c6);
+}
+
+Atomtype::Atomtype( const Atomtype& other ) :
+    c6( other.c6 ), 
+    c12( other.c12 ),
+    rcut2( other.rcut2 ),
+    tail_factor( other.tail_factor ),
+    n( other.n ),
+    name( other.name), 
+    rcut2_8( other.rcut2_8 ), 
+    c12_8( other.c12_8 ), 
+    c6_8( other.c6_8)
+  {}
+
+Atomtype& Atomtype::operator=( const Atomtype& other ) 
+{
+    c6 = other.c6;
+    c12 = other.c12;
+    rcut2 = other.rcut2;
+    tail_factor = other.tail_factor;
+    n = other.n;
+    name = other.name;
+    rcut2_8 = other.rcut2_8;
+    c12_8 = other.c12_8;
+    c6_8 = other.c6_8;
+    return *this;
 }
 
 double Atomtype::CalcPE(int frame_i, Trajectory &trj, coordinates &rand_xyz, cubicbox_m256 &box, double vol) const
