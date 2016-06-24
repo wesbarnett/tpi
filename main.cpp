@@ -55,6 +55,9 @@ int main(int argc, char* argv[])
     nthreads = omp_get_num_threads();
 
     Trajectory trj(ini.xtcfile, ini.ndxfile);
+
+    // Would like to use vector, but it doesn't play well with __m256 members in
+    // this class
     Atomtype at[ini.atomtypes];
 
     for (int i = 0; i < ini.atomtypes; i++)

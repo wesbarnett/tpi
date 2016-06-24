@@ -15,21 +15,15 @@ Atomtype::Atomtype(const Trajectory &trj, string name, float sig1, float eps1, f
     float ri6 = 1.0/(pow(rc2,3));
     n = trj.GetNAtoms(this->name);
     tail_factor = 2.0/3.0 * M_PI * ri6*(1.0/3.0*c12*ri6 - c6);
-/*
- * TODO
     rcut2_8 = _mm256_set1_ps(rcut2);
     c12_8 = _mm256_set1_ps(c12);
     c6_8 = _mm256_set1_ps(c6);
-*/
 }
 
 double Atomtype::CalcPE(int frame_i, const Trajectory &trj, const coordinates &rand_xyz, const cubicbox_m256 &box, double vol) const
 {
     float pe = 0.0;
     int atom_i = 0;
-    __m256 rcut2_8 = _mm256_set1_ps(rcut2);
-    __m256 c12_8 = _mm256_set1_ps(c12);
-    __m256 c6_8 = _mm256_set1_ps(c6);
 
     /* BEGIN SIMD SECTION */
     // This performs the exact same calculation after the SIMD section
