@@ -35,6 +35,13 @@ void do_output(Ini &ini, Atomtype at[], double chem_pot, double chem_pot_uncerta
 
 int main(int argc, char* argv[])
 {
+    cout << "==========================================================" << endl;
+    cout << "=  Test particle insertion program                       =" << endl;
+    cout << "=  (c) 2016 James W. Barnett                             =" << endl;
+    cout << "=  http://github.com/wesbarnett/tpi                      =" << endl;
+    cout << "=                                                        =" << endl;
+    cout << "=  Bitcoin tips: 1PZziQoUJfhMKZC8gXQZtS5ebHWMba3Geb      =" << endl;
+    cout << "==========================================================" << endl << endl;
 
     if (argc != 2)
     {
@@ -231,9 +238,13 @@ void do_output(Ini &ini, Atomtype at[], double chem_pot, double chem_pot_uncerta
 
     ofstream ofs(ini.outfile.c_str());
     ofs << scientific << setprecision(6) << left;
-    ofs << "-----------------------------------------------------------------------" << endl;
-    ofs << "         Test particle insertion program -- Wes Barnett" << endl;
-    ofs << "-----------------------------------------------------------------------" << endl;
+    ofs << "==========================================================" << endl;
+    ofs << "=  Test particle insertion program                       =" << endl;
+    ofs << "=  (c) 2016 James W. Barnett                             =" << endl;
+    ofs << "=  http://github.com/wesbarnett/tpi                      =" << endl;
+    ofs << "=                                                        =" << endl;
+    ofs << "=  Bitcoin tips: 1PZziQoUJfhMKZC8gXQZtS5ebHWMba3Geb      =" << endl;
+    ofs << "==========================================================" << endl << endl;
     ofs << setw(40) << "Started computation at:" << setw(20) << ctime(&start_time);
     ofs << setw(40) << "Finished computation at:" << setw(20) << ctime(&end_time);
     ofs << setw(40) << "Number of OMP threads:" << setw(20) << nthreads << endl;
