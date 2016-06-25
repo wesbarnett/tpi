@@ -1,7 +1,6 @@
 
 #include "Atomtype.h"
 
-
 Atomtype::Atomtype() {  }
 
 Atomtype::Atomtype(const Trajectory &trj, string name, float sig1, float eps1, float sig2, float eps2, float rc2, float epsfact)
