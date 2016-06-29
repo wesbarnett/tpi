@@ -184,7 +184,7 @@ double do_uncertainty(int boot_n, int block_n, int frame_total, double betai, ve
     vector <double> chem_pot_boot(boot_n);
 	uniform_int_distribution<int> dist(0,block_n-1);
 
-    auto frame = [block_n, frame_total](int block) { return (int)( (double)block/block_n * frame_total); };
+    auto frame = [block_n, frame_total](int block) { return (int)(block * frame_total/block_n); };
 
     #pragma omp parallel
     {
@@ -212,15 +212,9 @@ double do_uncertainty(int boot_n, int block_n, int frame_total, double betai, ve
 
     }
 
-    double chem_pot_boot_avg = accumulate(chem_pot_boot.begin(), chem_pot_boot.end(), 0.0);
-    chem_pot_boot_avg /= boot_n;
-
-    auto calc_diff2 = [chem_pot_boot_avg](double x) {  return pow(chem_pot_boot_avg - x,2); };
-    for_each(chem_pot_boot.begin(), chem_pot_boot.end(),  calc_diff2);
-    double chem_pot_boot_var = accumulate(chem_pot_boot.begin(), chem_pot_boot.end(), 0.0);
-    chem_pot_boot_var /= (boot_n-1);
-
-    return sqrt(chem_pot_boot_var);
+    double chem_pot_boot_avg = accumulate(chem_pot_boot.begin(), chem_pot_boot.end(), 0.0) / boot_n;
+    auto calc_diff2 = [chem_pot_boot_avg](double lhs, double rhs) { return lhs + pow(chem_pot_boot_avg - rhs,2); };
+    return sqrt(accumulate(chem_pot_boot.begin(), chem_pot_boot.end(), 0.0, calc_diff2) / (boot_n-1));
 }
 
 void do_output(Ini &ini, Atomtype at[], double chem_pot, double chem_pot_uncertainty, time_t start_time, time_t end_time, int nthreads)
