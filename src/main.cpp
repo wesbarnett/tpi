@@ -190,7 +190,7 @@ double do_uncertainty(int boot_n, int block_n, int frame_total, double betai, ve
     {
         double V_boot;
         double V_exp_pe_boot;
-        vector <int> block(block_n);
+        int block;
 
         #pragma omp for
         for (int boot_i = 0; boot_i < boot_n; boot_i++)
@@ -198,12 +198,12 @@ double do_uncertainty(int boot_n, int block_n, int frame_total, double betai, ve
 
             V_boot = 0.0;
             V_exp_pe_boot = 0.0;
-            generate(block.begin(), block.end(), bind(dist, gen));
 
             for (int block_i = 0; block_i < block_n; block_i++)
             {
-                V_boot += accumulate(V.begin()+frame(block[block_i]), V.end()+frame(block[block_i]+1), V_boot);
-                V_exp_pe_boot += accumulate(V_exp_pe.begin()+frame(block[block_i]), V_exp_pe.end()+frame(block[block_i]+1), V_exp_pe_boot);
+                block = dist(gen);
+                V_boot += accumulate(V.begin()+frame(block), V.end()+frame(block+1), V_boot);
+                V_exp_pe_boot += accumulate(V_exp_pe.begin()+frame(block), V_exp_pe.end()+frame(block+1), V_exp_pe_boot);
             }
 
             chem_pot_boot[boot_i] = -log(V_exp_pe_boot/V_boot) * betai;
