@@ -30,7 +30,7 @@
 using namespace std;
 
 double do_uncertainty(int boot_n, int block_n, int frame_total, double betai, vector <double> &V, vector <double> V_exp_pe);
-double do_chempot(Trajectory &trj, Atomtype at[], vector <double> &V_exp_pe, vector <double> &V, int &frame_total, int frame_freq, int rand_n, int chunk, double beta, int atomtypes);
+double do_chempot(Trajectory &trj, Atomtype at[], vector <double> &V_exp_pe, vector <double> &V, int &frame_total, int frame_freq, int rand_n, double rand_ni, int chunk, double beta, double betai, int atomtypes);
 void do_output(Ini &ini, Atomtype at[], double chem_pot, double chem_pot_uncertainty, time_t start_time, time_t end_time, int nthreds);
 
 int main(int argc, char* argv[])
@@ -73,7 +73,7 @@ int main(int argc, char* argv[])
     vector <double> V_exp_pe;
     vector <double> V;
     int frame_total = 0;
-    double chem_pot = do_chempot(trj, at, V_exp_pe, V, frame_total, ini.frame_freq, ini.rand_n, nthreads*ini.chunk_size, ini.beta, ini.atomtypes);
+    double chem_pot = do_chempot(trj, at, V_exp_pe, V, frame_total, ini.frame_freq, ini.rand_n, ini.rand_ni, nthreads*ini.chunk_size, ini.beta, ini.betai, ini.atomtypes);
     double chem_pot_uncertainty = do_uncertainty(ini.boot_n, ini.block_n, frame_total, ini.betai, V, V_exp_pe);
 
     cout << "---------------------------------------------------------" << endl;
@@ -90,15 +90,13 @@ int main(int argc, char* argv[])
 
 }
 
-double do_chempot(Trajectory &trj, Atomtype at[], vector <double> &V_exp_pe, vector <double> &V, int &frame_total, int frame_freq, int rand_n, int chunk, double beta, int atomtypes)
+double do_chempot(Trajectory &trj, Atomtype at[], vector <double> &V_exp_pe, vector <double> &V, int &frame_total, int frame_freq, int rand_n, double rand_ni, int chunk, double beta, double betai, int atomtypes)
 {
 
     random_device rd;
     mt19937 gen(rd());
     double V_avg = 0.0;
     double V_exp_pe_avg = 0.0;
-    double rand_ni = 1.0/rand_n;
-    double betai = 1.0/beta;
 
     int frames_read = -1;
 
@@ -182,39 +180,55 @@ double do_uncertainty(int boot_n, int block_n, int frame_total, double betai, ve
     random_device rd;
     mt19937 gen(rd());
     vector <double> chem_pot_boot(boot_n);
+    double chem_pot_boot_avg = 0.0;
 	uniform_int_distribution<int> dist(0,block_n-1);
 
-    auto frame = [block_n, frame_total](int block) { return (int)(block * frame_total/block_n); };
-
-    #pragma omp parallel
+    #pragma omp parallel for reduction(+:chem_pot_boot_avg)
+    for (int boot_i = 0; boot_i < boot_n; boot_i++)
     {
-        double V_boot;
-        double V_exp_pe_boot;
-        int block;
 
-        #pragma omp for
-        for (int boot_i = 0; boot_i < boot_n; boot_i++)
+        double V_boot = 0.0;
+        double V_exp_pe_boot = 0.0;
+
+        for (int block_i = 0; block_i < block_n; block_i++)
         {
 
-            V_boot = 0.0;
-            V_exp_pe_boot = 0.0;
+            int block = dist(gen);
+            int block_end;
+            int block_start = (double)block/block_n * frame_total;
 
-            for (int block_i = 0; block_i < block_n; block_i++)
+            if (block != block_n-1)
             {
-                block = dist(gen);
-                V_boot += accumulate(V.begin()+frame(block), V.end()+frame(block+1), V_boot);
-                V_exp_pe_boot += accumulate(V_exp_pe.begin()+frame(block), V_exp_pe.end()+frame(block+1), V_exp_pe_boot);
+                block_end = (double)(block+1)/block_n * frame_total;
+            }
+            else
+            {
+                block_end = frame_total;
             }
 
-            chem_pot_boot[boot_i] = -log(V_exp_pe_boot/V_boot) * betai;
+            for (int frame_i = block_start; frame_i < block_end; frame_i++)
+            {
+                V_boot += V[frame_i];
+                V_exp_pe_boot += V_exp_pe[frame_i];
+            }
 
         }
 
+        chem_pot_boot[boot_i] = -log(V_exp_pe_boot/V_boot) * betai;
+        chem_pot_boot_avg += chem_pot_boot[boot_i];
+
     }
 
-    double chem_pot_boot_avg = accumulate(chem_pot_boot.begin(), chem_pot_boot.end(), 0.0) / boot_n;
-    auto calc_diff2 = [chem_pot_boot_avg](double lhs, double rhs) { return lhs + pow(chem_pot_boot_avg - rhs,2); };
-    return sqrt(accumulate(chem_pot_boot.begin(), chem_pot_boot.end(), 0.0, calc_diff2) / (boot_n-1));
+    chem_pot_boot_avg /= boot_n;
+
+    double chem_pot_boot_var = 0.0;
+    for (int boot_i = 0; boot_i < boot_n; boot_i++)
+    {
+        chem_pot_boot_var += pow(chem_pot_boot_avg - chem_pot_boot[boot_i], 2);
+    }
+    chem_pot_boot_var /= (boot_n-1);
+
+    return sqrt(chem_pot_boot_var);
 }
 
 void do_output(Ini &ini, Atomtype at[], double chem_pot, double chem_pot_uncertainty, time_t start_time, time_t end_time, int nthreads)
