@@ -14,7 +14,7 @@ Atomtype::Atomtype(const Trajectory &trj, string name, float sig1, float eps1, f
     float ri6 = 1.0/(pow(rc2,3));
     float ri3 = 1.0/(pow(sqrt(rc2),3));
     n = trj.GetNAtoms(this->name);
-    tail_factor = 8.0/3.0 * M_PI * ri3*(1.0/3.0*c12*ri6 - c6);
+    tail_factor = 4.0/3.0 * M_PI * ri3*(1.0/3.0*c12*ri6 - c6);
     rcut2_8 = _mm256_set1_ps(rcut2);
     c12_8 = _mm256_set1_ps(c12);
     c6_8 = _mm256_set1_ps(c6);
